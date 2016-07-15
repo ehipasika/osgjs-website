@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/Lod.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.26</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">177</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">59.60</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.93</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Node = require( &#039;osg/Node&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Vec2 = require( &#039;osg/Vec2&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var BoundingSphere = require( &#039;osg/BoundingSphere&#039; );
+
+/**
+ *  Lod that can contains child node
+ *  @class Lod
+ */
+var Lod = function () {
+    Node.call( this );
+    this._radius = -1;
+    this._range = [];
+    this._rangeMode = Lod.DISTANCE_FROM_EYE_POINT;
+    this._userDefinedCenter = [];
+    this._centerMode = Lod.USE_BOUNDING_SPHERE_CENTER;
+};
+
+Lod.DISTANCE_FROM_EYE_POINT = 0;
+Lod.PIXEL_SIZE_ON_SCREEN = 1;
+
+Lod.USE_BOUNDING_SPHERE_CENTER = 0;
+Lod.USER_DEFINED_CENTER = 1;
+Lod.UNION_OF_BOUNDING_SPHERE_AND_USER_DEFINED = 2;
+
+/** @lends Lod.prototype */
+Lod.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Node.prototype, {
+    // Functions here
+    getRadius: function () {
+        return this._radius;
+    },
+
+    /** Set the object-space reference radius of the volume enclosed by the LOD.
+     * Used to determine the bounding sphere of the LOD in the absence of any children.*/
+    setRadius: function ( radius ) {
+        this._radius = radius;
+    },
+
+    setCenter: function ( center ) {
+        if ( this._centerMode !== Lod.UNION_OF_BOUNDING_SPHERE_AND_USER_DEFINED )
+            this._centerMode = Lod.USER_DEFINED_CENTER;
+        this._userDefinedCenter = center;
+    },
+
+    getCenter: function () {
+        if ( ( this._centerMode === Lod.USER_DEFINED_CENTER ) || ( this._centerMode === Lod.UNION_OF_BOUNDING_SPHERE_AND_USER_DEFINED ) )
+            return this._userDefinedCenter;
+        else return this.getBound().center();
+    },
+
+    setCenterMode: function ( centerMode ) {
+        this._centerMode = centerMode;
+    },
+
+    computeBoundingSphere: function ( bsphere ) {
+        if ( this._centerMode === Lod.USER_DEFINED_CENTER &amp;&amp; this._radius &gt;= 0.0 ) {
+            bsphere.set( this._userDefinedCenter, this._radius );
+            return bsphere;
+        } else if ( this._centerMode === Lod.UNION_OF_BOUNDING_SPHERE_AND_USER_DEFINED &amp;&amp; this._radius &gt;= 0.0 ) {
+            bsphere.set( this._userDefinedCenter, this._radius );
+            var bs = new BoundingSphere();
+            bsphere.expandByBoundingSphere( Node.prototype.computeBoundingSphere.call( this, bs ) );
+            return bsphere;
+        } else {
+            Node.prototype.computeBoundingSphere.call( this, bsphere );
+            return bsphere;
+        }
+    },
+
+    projectBoundingSphere: ( function () {
+        // from http://www.iquilezles.org/www/articles/sphereproj/sphereproj.htm
+        // Sample code at http://www.shadertoy.com/view/XdBGzd?
+        var o = Vec3.create();
+        return function ( sph, camMatrix, fle ) {
+            Matrix.transformVec3( camMatrix, sph.center(), o );
+            var r2 = sph.radius2();
+            var z2 = o[ 2 ] * o[ 2 ];
+            var l2 = Vec3.length2( o );
+            var area = -Math.PI * fle * fle * r2 * Math.sqrt( Math.abs( ( l2 - r2 ) / ( r2 - z2 ) ) ) / ( r2 - z2 );
+            return area;
+        };
+    } )(),
+
+    setRangeMode: function ( mode ) {
+        //TODO: check if mode is correct
+        this._rangeMode = mode;
+    },
+
+    addChildNode: function ( node ) {
+
+        Node.prototype.addChild.call( this, node );
+        if ( this.children.length &gt; this._range.length ) {
+            var r = [];
+            var max = 0.0;
+            if ( this._range.lenght &gt; 0 )
+                max = this._range[ this._range.length - 1 ][ 1 ];
+            r.push( Vec2.createAndSet( max, max ) );
+            this._range.push( r );
+        }
+        return true;
+    },
+
+    addChild: function ( node, min, max ) {
+        Node.prototype.addChild.call( this, node );
+
+        if ( this.children.length &gt; this._range.length ) {
+            var r = [];
+            r.push( Vec2.createAndSet( min, min ) );
+            this._range.push( r );
+        }
+        this._range[ this.children.length - 1 ][ 0 ] = min;
+        this._range[ this.children.length - 1 ][ 1 ] = max;
+        return true;
+    },
+
+    traverse: ( function () {
+
+        // avoid to generate variable on the heap to limit garbage collection
+        // instead create variable and use the same each time
+        var zeroVector = Vec3.create();
+        var eye = Vec3.create();
+        var viewModel = Matrix.create();
+
+        return function ( visitor ) {
+            var traversalMode = visitor.traversalMode;
+
+            switch ( traversalMode ) {
+
+            case NodeVisitor.TRAVERSE_ALL_CHILDREN:
+
+                for ( var index = 0; index &lt; this.children.length; index++ ) {
+                    this.children[ index ].accept( visitor );
+                }
+                break;
+
+            case ( NodeVisitor.TRAVERSE_ACTIVE_CHILDREN ):
+                var requiredRange = 0;
+                var matrix = visitor.getCurrentModelViewMatrix();
+                Matrix.inverse( matrix, viewModel );
+                // Calculate distance from viewpoint
+                if ( this._rangeMode === Lod.DISTANCE_FROM_EYE_POINT ) {
+                    Matrix.transformVec3( viewModel, zeroVector, eye );
+                    var d = Vec3.distance( eye, this.getBound().center() );
+                    requiredRange = d * visitor.getLODScale();
+                } else {
+                    // Let&#039;s calculate pixels on screen
+                    var projmatrix = visitor.getCurrentProjectionMatrix();
+                    // focal lenght is the value stored in projmatrix[0]
+                    requiredRange = this.projectBoundingSphere( this.getBound(), matrix, projmatrix[ 0 ] );
+                    // Multiply by a factor to get the real area value
+                    requiredRange = ( ( requiredRange * visitor.getViewport().width() * visitor.getViewport().width() ) * 0.25 ) / visitor.getLODScale();
+                }
+
+                var numChildren = this.children.length;
+                if ( this._range.length &lt; numChildren ) numChildren = this._range.length;
+
+                for ( var j = 0; j &lt; numChildren; ++j ) {
+                    if ( this._range[ j ][ 0 ] &lt;= requiredRange &amp;&amp; requiredRange &lt; this._range[ j ][ 1 ] ) {
+                        this.children[ j ].accept( visitor );
+                    }
+                }
+                break;
+
+            default:
+                break;
+            }
+        };
+    } )()
+
+} ), &#039;osg&#039;, &#039;Lod&#039; );
+
+MACROUTILS.setTypeID( Lod );
+module.exports = Lod;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

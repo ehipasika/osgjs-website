@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgViewer/eventProxy/WebVR.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">68.57</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">131</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">22.61</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.01</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var Quat = require( &#039;osg/Quat&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+
+
+var WebVR = function ( viewer ) {
+    this._viewer = viewer;
+
+    this._type = &#039;WebVR&#039;;
+    this._enable = false;
+    this._hmd = undefined;
+    this._sensor = undefined;
+
+    this._lastPose = undefined; // so that we can pass it to the submitFrame call
+    this._quat = Quat.create();
+    this._pos = Vec3.create();
+
+    this._worldScale = 1.0;
+};
+
+WebVR.prototype = {
+
+    setWorldScale: function ( val ) {
+        this._worldScale = val;
+    },
+
+    setEnable: function ( bool ) {
+        this._enable = bool;
+    },
+
+    getEnable: function () {
+        return this._enable;
+    },
+
+    init: function () {
+
+        if ( !navigator.getVRDisplays )
+            return;
+
+        var self = this;
+        navigator.getVRDisplays().then( function ( displays ) {
+            if ( displays.length &gt; 0 ) {
+                self._hmd = displays[ 0 ];
+                Notify.log( &#039;Found a VR display&#039; );
+                // currently it&#039;s the event proxy webvr that has the responsability of detecting vr devices
+                self._viewer.setVRDisplay( self._hmd );
+            }
+        } );
+    },
+
+    getManipulatorController: function () {
+        return this._viewer.getManipulator().getControllerList()[ this._type ];
+    },
+
+    isValid: function () {
+        if ( !this._enable )
+            return false;
+
+        var manipulator = this._viewer.getManipulator();
+        if ( !manipulator )
+            return false;
+
+        if ( !manipulator.getControllerList()[ this._type ] )
+            return false;
+
+        if ( !this._hmd )
+            return false;
+
+        return true;
+    },
+
+    update: ( function () {
+        var tempQuat = Quat.create();
+        var tempPos = Vec3.create();
+
+        return function () {
+
+            if ( !this.isValid() )
+                return;
+
+            var manipulatorAdapter = this.getManipulatorController();
+
+            // update the manipulator with the rotation of the device
+            if ( !manipulatorAdapter.update )
+                return;
+
+            if ( !this._hmd.capabilities.hasOrientation &amp;&amp; !this._hmd.capabilities.hasPosition )
+                return;
+
+            this._lastPose = this._hmd.getPose(); // if no prediction, call this._hmd.getImmediatePose()
+
+            // WebVR up vector is Y
+            // OSGJS up vector is Z
+
+            var sitToStand = this._hmd.stageParameters &amp;&amp; this._hmd.stageParameters.sittingToStandingTransform;
+
+            var quat = this._lastPose.orientation;
+            if ( quat ) {
+                if ( sitToStand ) {
+                    quat = Matrix.getRotate( sitToStand, tempQuat );
+                    Quat.mult( quat, this._lastPose.orientation, quat );
+                }
+
+                this._quat[ 0 ] = quat[ 0 ];
+                this._quat[ 1 ] = -quat[ 2 ];
+                this._quat[ 2 ] = quat[ 1 ];
+                this._quat[ 3 ] = quat[ 3 ];
+            }
+
+            var pos = this._lastPose.position;
+            if ( pos ) {
+                if ( sitToStand ) {
+                    pos = Matrix.transformVec3( sitToStand, pos, tempPos );
+                }
+                this._pos[ 0 ] = pos[ 0 ] * this._worldScale;
+                this._pos[ 1 ] = -pos[ 2 ] * this._worldScale;
+                this._pos[ 2 ] = pos[ 1 ] * this._worldScale;
+            }
+
+            manipulatorAdapter.update( this._quat, this._pos );
+        };
+    } )(),
+
+
+    getHmd: function () {
+        return this._hmd;
+    }
+};
+module.exports = WebVR;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgAnimation/RigGeometry.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">54.35</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">435</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">82.63</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">4.94</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Geometry = require( &#039;osg/Geometry&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var StateSet = require( &#039;osg/StateSet&#039; );
+var MorphGeometry = require( &#039;osgAnimation/MorphGeometry&#039; );
+var UpdateRigGeometry = require( &#039;osgAnimation/UpdateRigGeometry&#039; );
+var RigTransformHardware = require( &#039;osgAnimation/RigTransformHardware&#039; );
+var AnimationUpdateCallback = require( &#039;osgAnimation/AnimationUpdateCallback&#039; );
+var ComputeMatrixFromNodePath = require( &#039;osg/ComputeMatrixFromNodePath&#039; );
+
+
+// RigGeometry is a Geometry deformed by bones
+// To connect bones to RigGeometry it requires:
+//     - a map of bones with index / weight eg also called VertexInfluenceMap
+// {
+//     bone0: { index: [],  // vertex index
+//              weight: []  // weight for this index
+//            },
+//     bone2: { index: [],
+//              weight: []
+//            }
+// }
+
+
+var RigGeometry = function () {
+
+    Geometry.call( this );
+
+    this._shape = null; // by default no kdtree/shape for rig
+
+    this.setUpdateCallback( new UpdateRigGeometry() );
+
+    // handle matrixFromSkeletonToGeometry and invMatrixFromSkeletonToGeometry computation
+    this._root = undefined;
+    this._pathToRoot = undefined;
+    this._isAnimatedPath = false;
+
+    this._boneNameID = {};
+
+    this._matrixFromSkeletonToGeometry = Matrix.create();
+    this._invMatrixFromSkeletonToGeometry = Matrix.create();
+
+    this._rigTransformImplementation = new RigTransformHardware();
+
+    // RigGeometry have a special stateset that will be pushed at the very end of the culling
+    // this stateSet only represents animation (and shouldn&#039;t contain any rendering attributes)
+    // It&#039;s a way to make every RigGeometry unique (in term of stateSet stack)
+    this._stateSetAnimation = new StateSet();
+
+    this._needToComputeMatrix = true;
+
+};
+
+RigGeometry.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Geometry.prototype, {
+
+    getStateSetAnimation: function () {
+        return this._stateSetAnimation;
+    },
+
+    getSkeleton: function () {
+        return this._root;
+    },
+
+    setSkeleton: function ( root ) {
+        this._root = root;
+    },
+
+    setPathToSkeleton: function ( path ) {
+        this._pathToRoot = path;
+        this._isAnimatedPath = AnimationUpdateCallback.checkPathIsAnimated( path );
+    },
+
+    setNeedToComputeMatrix: function ( needToComputeMatrix ) {
+        this._needToComputeMatrix = needToComputeMatrix;
+    },
+
+    getNeedToComputeMatrix: function () {
+        return this._needToComputeMatrix;
+    },
+
+    computeBoundingBox: function ( boundingBox ) {
+
+        boundingBox.init();
+
+        var vertexArray = this.getVertexAttributeList().Vertex;
+        var weightsArray = this.getVertexAttributeList().Weights;
+        // mainly copy paste of geometry computeBoundingBox code, except we only
+        // take into account the non-influenced vertices
+
+        // we do that only for the non-influenced vertices because the rigged ones
+        // can&#039;t be statically computed (full moving bbox of rigs should be computed externally
+        // through bones or cpu rigged colision mesh, etc)
+        // bbox is important for culling (near/far)
+
+        if ( vertexArray &amp;&amp; weightsArray &amp;&amp; vertexArray.getElements() &amp;&amp; vertexArray.getItemSize() &gt; 2 ) {
+
+            var weights = weightsArray.getElements();
+            var vertexes = vertexArray.getElements();
+            var itemSize = vertexArray.getItemSize();
+
+            var min = boundingBox.getMin();
+            var max = boundingBox.getMax();
+
+            var minx = min[ 0 ];
+            var miny = min[ 1 ];
+            var minz = min[ 2 ];
+            var maxx = max[ 0 ];
+            var maxy = max[ 1 ];
+            var maxz = max[ 2 ];
+
+            for ( var idx = 0, idb = 0, l = vertexes.length; idx &lt; l; idx += itemSize, idb += 4 ) {
+
+                if ( weights[ idx ] !== 0.0 || weights[ idx + 1 ] !== 0.0 || weights[ idx + 2 ] !== 0.0 || weights[ idx + 3 ] !== 0.0 )
+                    continue;
+
+                var v1 = vertexes[ idx ];
+                var v2 = vertexes[ idx + 1 ];
+                var v3 = vertexes[ idx + 2 ];
+                if ( v1 &lt; minx ) minx = v1;
+                if ( v1 &gt; maxx ) maxx = v1;
+                if ( v2 &lt; miny ) miny = v2;
+                if ( v2 &gt; maxy ) maxy = v2;
+                if ( v3 &lt; minz ) minz = v3;
+                if ( v3 &gt; maxz ) maxz = v3;
+            }
+
+            min[ 0 ] = minx;
+            min[ 1 ] = miny;
+            min[ 2 ] = minz;
+            max[ 0 ] = maxx;
+            max[ 1 ] = maxy;
+            max[ 2 ] = maxz;
+        }
+
+        return boundingBox;
+    },
+
+    computeMatrixFromRootSkeleton: function () {
+
+        if ( !this._root ) {
+            Notify.warn( &#039;Warning &#039; + this.className() + &#039;.computeMatrixFromRootSkeleton if you have this message it means you miss to call buildTransformer( root ), or your RigGeometry (&#039; + this.getName() + &#039;) is not attached to a Skeleton subgraph&#039; );
+            return;
+        }
+
+        Matrix.makeIdentity( this._matrixFromSkeletonToGeometry );
+        ComputeMatrixFromNodePath.computeLocalToWorld( this._pathToRoot, true, this._matrixFromSkeletonToGeometry );
+        Matrix.inverse( this._matrixFromSkeletonToGeometry, this._invMatrixFromSkeletonToGeometry );
+
+        if ( !this._isAnimatedPath )
+            this._needToComputeMatrix = false;
+    },
+
+    getMatrixFromSkeletonToGeometry: function () {
+        return this._matrixFromSkeletonToGeometry;
+    },
+
+    getInvMatrixFromSkeletonToGeometry: function () {
+        return this._invMatrixFromSkeletonToGeometry;
+    },
+
+    getSourceGeometry: function () {
+        return this._geometry;
+    },
+
+    setSourceGeometry: function ( geometry ) {
+        this._geometry = geometry;
+    },
+
+    mergeChildrenVertexAttributeList: function () {
+
+        if ( this._geometry instanceof MorphGeometry )
+            this._geometry.mergeChildrenVertexAttributeList();
+
+        var sourceGeometryVertexAttributeList = this._geometry.getVertexAttributeList();
+
+        Geometry.appendVertexAttributeToList( sourceGeometryVertexAttributeList, this.getVertexAttributeList() );
+
+    },
+
+    mergeChildrenData: function () {
+
+        // move to the rig the vertex attributes, the primitives and the stateset
+
+        this.mergeChildrenVertexAttributeList();
+        var primitiveSetList = this._geometry.getPrimitiveSetList();
+
+        this.getPrimitiveSetList().length = 0;
+        for ( var i = 0, il = primitiveSetList.length; i &lt; il; i++ )
+            this.getPrimitiveSetList()[ i ] = primitiveSetList[ i ];
+
+        if ( this.getStateSet() )
+            console.error( &#039;A stateset in the rig is already present : &#039; + this.getStateSet() );
+        this.setStateSet( this._geometry.getStateSet() );
+    },
+
+    update: function () {
+        this._rigTransformImplementation.update( this );
+    },
+
+    computeTransformedVertex: function ( id, out ) {
+        out = out || Vec3.create();
+
+        var vList = this.getVertexAttributeList();
+        var vWeights = vList.Weights.getElements();
+        var vBones = vList.Bones.getElements();
+
+        var x = 0.0;
+        var y = 0.0;
+        var z = 0.0;
+        if ( this._geometry.computeTransformedVertex ) {
+            this._geometry.computeTransformedVertex( id, out );
+            x = out[ 0 ];
+            y = out[ 1 ];
+            z = out[ 2 ];
+        } else {
+            var verts = vList.Vertex.getElements();
+            x = verts[ id * 3 ];
+            y = verts[ id * 3 + 1 ];
+            z = verts[ id * 3 + 2 ];
+        }
+
+        var id4 = id * 4;
+
+        var palette = this._rigTransformImplementation._skinningAttribute.getMatrixPalette();
+        var m0 = 0.0;
+        var m1 = 0.0;
+        var m2 = 0.0;
+        var m4 = 0.0;
+        var m5 = 0.0;
+        var m6 = 0.0;
+        var m8 = 0.0;
+        var m9 = 0.0;
+        var m10 = 0.0;
+        var m12 = 0.0;
+        var m13 = 0.0;
+        var m14 = 0.0;
+        var m15 = 0.0;
+
+        var doSkin = false;
+        for ( var i = 0; i &lt; 4; ++i ) {
+            var w = vWeights[ id4 + i ];
+            if ( w === 0.0 )
+                continue;
+
+            var idBone = vBones[ id4 + i ] * 12;
+
+            m0 += palette[ idBone + 0 ] * w;
+            m4 += palette[ idBone + 1 ] * w;
+            m8 += palette[ idBone + 2 ] * w;
+            m12 += palette[ idBone + 3 ] * w;
+
+            m1 += palette[ idBone + 4 ] * w;
+            m5 += palette[ idBone + 5 ] * w;
+            m9 += palette[ idBone + 6 ] * w;
+            m13 += palette[ idBone + 7 ] * w;
+
+            m2 += palette[ idBone + 8 ] * w;
+            m6 += palette[ idBone + 9 ] * w;
+            m10 += palette[ idBone + 10 ] * w;
+            m14 += palette[ idBone + 11 ] * w;
+
+            m15 += w;
+            doSkin = true;
+        }
+
+        if ( !doSkin ) {
+            out[ 0 ] = x;
+            out[ 1 ] = y;
+            out[ 2 ] = z;
+        }
+
+        var d = 1.0 / m15;
+        out[ 0 ] = ( m0 * x + m4 * y + m8 * z + m12 ) * d;
+        out[ 1 ] = ( m1 * x + m5 * y + m9 * z + m13 ) * d;
+        out[ 2 ] = ( m2 * x + m6 * y + m10 * z + m14 ) * d;
+
+        return out;
+    },
+
+    computeTransformedVertices: function () {
+
+        // obviously slow as it can&#039;t rely on kdTree AND we transform everything cpu side
+
+        var vList = this.getVertexAttributeList();
+        var verts = this._geometry.computeTransformedVertices ? this._geometry.computeTransformedVertices() : vList.Vertex.getElements();
+        var vWeights = vList.Weights.getElements();
+        var vBones = vList.Bones.getElements();
+
+        var riggedVerts = this._riggedVerts || new Float32Array( verts.length );
+
+        // /!\ if the geometry has several parents inside a skeleton
+        // it might not work as it will just take the last compute matrix palette
+        var palette = this._rigTransformImplementation._skinningAttribute.getMatrixPalette();
+
+        // verbose... but fast
+        for ( var idv = 0, idr = 0, len = verts.length; idv &lt; len; idv += 3, idr += 4 ) {
+
+            var m0 = 0.0;
+            var m1 = 0.0;
+            var m2 = 0.0;
+
+            var m4 = 0.0;
+            var m5 = 0.0;
+            var m6 = 0.0;
+
+            var m8 = 0.0;
+            var m9 = 0.0;
+            var m10 = 0.0;
+
+            var m12 = 0.0;
+            var m13 = 0.0;
+            var m14 = 0.0;
+            var m15 = 0.0;
+
+            var doSkin = false;
+
+            var w = vWeights[ idr ];
+            var idBone;
+            if ( w !== 0.0 ) {
+                idBone = vBones[ idr ] * 12;
+                m0 += palette[ idBone + 0 ] * w;
+                m4 += palette[ idBone + 1 ] * w;
+                m8 += palette[ idBone + 2 ] * w;
+                m12 += palette[ idBone + 3 ] * w;
+
+                m1 += palette[ idBone + 4 ] * w;
+                m5 += palette[ idBone + 5 ] * w;
+                m9 += palette[ idBone + 6 ] * w;
+                m13 += palette[ idBone + 7 ] * w;
+
+                m2 += palette[ idBone + 8 ] * w;
+                m6 += palette[ idBone + 9 ] * w;
+                m10 += palette[ idBone + 10 ] * w;
+                m14 += palette[ idBone + 11 ] * w;
+
+                m15 += w;
+                doSkin = true;
+            }
+
+            w = vWeights[ idr + 1 ];
+            if ( w !== 0.0 ) {
+                idBone = vBones[ idr + 1 ] * 12;
+                m0 += palette[ idBone + 0 ] * w;
+                m4 += palette[ idBone + 1 ] * w;
+                m8 += palette[ idBone + 2 ] * w;
+                m12 += palette[ idBone + 3 ] * w;
+
+                m1 += palette[ idBone + 4 ] * w;
+                m5 += palette[ idBone + 5 ] * w;
+                m9 += palette[ idBone + 6 ] * w;
+                m13 += palette[ idBone + 7 ] * w;
+
+                m2 += palette[ idBone + 8 ] * w;
+                m6 += palette[ idBone + 9 ] * w;
+                m10 += palette[ idBone + 10 ] * w;
+                m14 += palette[ idBone + 11 ] * w;
+
+                m15 += w;
+                doSkin = true;
+            }
+
+            w = vWeights[ idr + 2 ];
+            if ( w !== 0.0 ) {
+                idBone = vBones[ idr + 2 ] * 12;
+
+                m0 += palette[ idBone + 0 ] * w;
+                m4 += palette[ idBone + 1 ] * w;
+                m8 += palette[ idBone + 2 ] * w;
+                m12 += palette[ idBone + 3 ] * w;
+
+                m1 += palette[ idBone + 4 ] * w;
+                m5 += palette[ idBone + 5 ] * w;
+                m9 += palette[ idBone + 6 ] * w;
+                m13 += palette[ idBone + 7 ] * w;
+
+                m2 += palette[ idBone + 8 ] * w;
+                m6 += palette[ idBone + 9 ] * w;
+                m10 += palette[ idBone + 10 ] * w;
+                m14 += palette[ idBone + 11 ] * w;
+
+                m15 += w;
+                doSkin = true;
+            }
+
+            w = vWeights[ idr + 3 ];
+            if ( w !== 0.0 ) {
+                idBone = vBones[ idr + 3 ] * 12;
+
+                m0 += palette[ idBone + 0 ] * w;
+                m4 += palette[ idBone + 1 ] * w;
+                m8 += palette[ idBone + 2 ] * w;
+                m12 += palette[ idBone + 3 ] * w;
+
+                m1 += palette[ idBone + 4 ] * w;
+                m5 += palette[ idBone + 5 ] * w;
+                m9 += palette[ idBone + 6 ] * w;
+                m13 += palette[ idBone + 7 ] * w;
+
+                m2 += palette[ idBone + 8 ] * w;
+                m6 += palette[ idBone + 9 ] * w;
+                m10 += palette[ idBone + 10 ] * w;
+                m14 += palette[ idBone + 11 ] * w;
+
+                m15 += w;
+                doSkin = true;
+            }
+
+            var x = verts[ idv ];
+            var y = verts[ idv + 1 ];
+            var z = verts[ idv + 2 ];
+
+            if ( !doSkin ) {
+                riggedVerts[ idv ] = x;
+                riggedVerts[ idv + 1 ] = y;
+                riggedVerts[ idv + 2 ] = z;
+                continue;
+            }
+
+            var d = 1.0 / m15;
+            riggedVerts[ idv ] = ( m0 * x + m4 * y + m8 * z + m12 ) * d;
+            riggedVerts[ idv + 1 ] = ( m1 * x + m5 * y + m9 * z + m13 ) * d;
+            riggedVerts[ idv + 2 ] = ( m2 * x + m6 * y + m10 * z + m14 ) * d;
+        }
+
+        return riggedVerts;
+    }
+
+} ), &#039;osgAnimation&#039;, &#039;RigGeometry&#039; );
+
+MACROUTILS.setTypeID( RigGeometry );
+
+module.exports = RigGeometry;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

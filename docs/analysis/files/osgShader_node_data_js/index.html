@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShader/node/data.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">85.75</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">185</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">31.18</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.28</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var utils = require( &#039;osgShader/utils&#039; );
+var Node = require( &#039;osgShader/node/Node&#039; );
+
+var sprintf = utils.sprintf;
+
+// Base Class for all variables Nodes
+// TODO: add precision
+// type {string} vec3/4/2, float, int, etc.
+// prefix {string} vec3/4/2, float, int, etc.
+var Variable = function ( type, prefix ) {
+    Node.call( this );
+    this._name = &#039;Variable&#039;;
+    this._prefix = prefix;
+    this._type = type;
+    this._value = undefined;
+};
+
+Variable.prototype = MACROUTILS.objectInherit( Node.prototype, {
+
+    getType: function () {
+        return this._type;
+    },
+
+    getVariable: function () {
+        return this._prefix;
+    },
+
+    setValue: function ( value ) {
+        this._value = value;
+        return this;
+    },
+
+    declare: function () {
+        if ( this._value !== undefined ) {
+            return sprintf( &#039;%s %s = %s;&#039;, [ this._type, this.getVariable(), this._value ] );
+        } else {
+            return sprintf( &#039;%s %s;&#039;, [ this._type, this.getVariable() ] );
+        }
+    }
+} );
+
+// Constant Variable
+// help glsl compiler and make sure no one writes in it :)
+var Constant = function ( type, prefix ) {
+    Variable.call( this, type, prefix );
+};
+Constant.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+
+    declare: function () {
+        return sprintf( &#039;const %s %s = %s;&#039;, [ this._type, this.getVariable(), this._value ] );
+    }
+} );
+
+var Uniform = function ( type, prefix, size ) {
+    Variable.call( this, type, prefix );
+    this._size = size;
+};
+
+Uniform.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+    declare: function () {
+        return undefined;
+    },
+
+    globalDeclaration: function () {
+        if ( this._size ) {
+            return sprintf( &#039;uniform %s %s[%s];&#039;, [ this._type, this.getVariable(), this._size ] );
+        } else {
+            return sprintf( &#039;uniform %s %s;&#039;, [ this._type, this.getVariable() ] );
+        }
+    }
+
+} );
+
+// Vertex Attribute Variables
+var Attribute = function ( type, prefix ) {
+    Variable.call( this, type, prefix );
+};
+
+Attribute.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+    declare: function () {
+        return undefined;
+    },
+
+    globalDeclaration: function () {
+        return sprintf( &#039;attribute %s %s;&#039;, [ this._type, this.getVariable() ] );
+    }
+
+} );
+
+
+var Varying = function ( type, prefix ) {
+    Variable.call( this, type, prefix );
+};
+
+Varying.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+    declare: function () {
+        return undefined;
+    },
+
+    globalDeclaration: function () {
+        return sprintf( &#039;varying %s %s;&#039;, [ this._type, this.getVariable() ] );
+    },
+
+    // bewteen vertex shader and fragmetn shader
+    // we keep varying but not associated
+    reset: function () {
+        this._inputs = [];
+        this._outputs = null;
+        this._text = undefined;
+    }
+} );
+
+
+
+
+var Sampler = function ( type, prefix ) {
+    Variable.call( this, type, prefix );
+};
+
+Sampler.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+    declare: function () {
+        return undefined;
+    },
+
+    globalDeclaration: function () {
+        return sprintf( &#039;uniform %s %s;&#039;, [ this._type, this.getVariable() ] );
+    }
+
+} );
+
+
+// Graph Root Node Abstract Class
+// Derive from that for new outputs
+// gl_FragDepth, etc.
+var Output = function ( type, wholeName ) {
+    Variable.call( this, type, wholeName );
+};
+
+Output.prototype = MACROUTILS.objectInherit( Variable.prototype, {
+    _unique: true,
+    isUnique: function () {
+        return this._unique;
+    },
+    outputs: function () { /* do nothing for variable */
+        return this;
+    },
+    getVariable: function () {
+        return this._prefix;
+    }
+} );
+
+// Graph Root Nodes
+var glFragColor = function () {
+    Output.call( this, &#039;vec4&#039;, &#039;gl_FragColor&#039; );
+    this._name = &#039;glFragColor&#039;;
+};
+glFragColor.prototype = MACROUTILS.objectInherit( Output.prototype, {} );
+
+var glPosition = function () {
+    Output.call( this, &#039;vec4&#039;, &#039;gl_Position&#039; );
+    this._name = &#039;glPosition&#039;;
+};
+glPosition.prototype = MACROUTILS.objectInherit( Output.prototype, {} );
+
+
+var glPointSize = function () {
+    Output.call( this, &#039;vec4&#039;, &#039;gl_PointSize&#039; );
+    this._name = &#039;glPointSize&#039;;
+};
+glPointSize.prototype = MACROUTILS.objectInherit( Output.prototype, {} );
+
+module.exports = {
+    Output: Output,
+    glPointSize: glPointSize,
+    glPosition: glPosition,
+    glFragColor: glFragColor,
+    Sampler: Sampler,
+    Variable: Variable,
+    Constant: Constant,
+    Attribute: Attribute,
+    Varying: Varying,
+    Uniform: Uniform
+};</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

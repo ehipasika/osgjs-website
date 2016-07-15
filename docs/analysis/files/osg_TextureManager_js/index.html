@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/TextureManager.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">71.40</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">272</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">62.55</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.73</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var Timer = require( &#039;osg/Timer&#039; );
+
+
+var TextureProfile = function ( target, internalFormat, width, height ) {
+    this._target = target;
+    this._internalFormat = internalFormat;
+    this._width = width;
+    this._height = height;
+    this._size = 0;
+    this.computeSize();
+};
+
+TextureProfile.prototype = {
+    match: function ( textureProfile ) {
+        return textureProfile._target === this._target &amp;&amp;
+            textureProfile._internalFormat === this._internalFormat &amp;&amp;
+            textureProfile._width === this._width &amp;&amp;
+            textureProfile._height === this._height;
+    },
+    computeSize: function () {
+        var Texture = require( &#039;osg/Texture&#039; );
+
+        var numBitsPerTexel = 0;
+        switch ( this._internalFormat ) {
+        case ( 1 ):
+            numBitsPerTexel = 8;
+            break;
+        case ( Texture.ALPHA ):
+            numBitsPerTexel = 8;
+            break;
+        case ( Texture.LUMINANCE ):
+            numBitsPerTexel = 8;
+            break;
+
+        case ( Texture.LUMINANCE_ALPHA ):
+            numBitsPerTexel = 16;
+            break;
+        case ( 2 ):
+            numBitsPerTexel = 16;
+            break;
+
+        case ( Texture.RGB ):
+            numBitsPerTexel = 24;
+            break;
+        case ( 3 ):
+            numBitsPerTexel = 24;
+            break;
+
+        case ( Texture.RGBA ):
+            numBitsPerTexel = 32;
+            break;
+        case ( 4 ):
+            numBitsPerTexel = 32;
+            break;
+
+        }
+        var size = ( Math.ceil( this._width * this._height * numBitsPerTexel ) / 8.0 );
+
+        if ( this._target === Texture.TEXTURE_CUBE_MAP )
+            size *= 6.0;
+
+        // add the mipmap overhead size even if not used
+        size += size / 3.0;
+
+        this._size = size;
+    },
+
+    getSize: function () {
+        return this._size;
+    }
+
+};
+TextureProfile.getHash = function () {
+    var array = Array.prototype.slice.call( arguments );
+    var hash = &#039;&#039;;
+    array.forEach( function ( element ) {
+        hash += element;
+    } );
+    return hash;
+};
+
+
+var TextureObject = function ( texture, id, textureSet ) {
+    this._texture = texture;
+    this._id = id;
+    this._textureSet = textureSet;
+};
+
+TextureObject.prototype = {
+    target: function () {
+        return this._textureSet._profile._target;
+    },
+    id: function () {
+        return this._id;
+    },
+    getTextureSet: function () {
+        return this._textureSet;
+    },
+    reset: function () {
+        this._textureObject = null;
+        this._texture = undefined;
+    },
+    bind: function ( gl ) {
+        gl.bindTexture( this.target(), this._id );
+    }
+};
+
+var TextureObjectSet = function ( profile ) {
+    this._profile = profile;
+    this._usedTextureObjects = [];
+    this._orphanedTextureObjects = [];
+};
+
+TextureObjectSet.prototype = {
+    getProfile: function () {
+        return this._profile;
+    },
+    getUsedTextureObjects: function () {
+        return this._usedTextureObjects;
+    },
+    getOrphanedTextureObjects: function () {
+        return this._orphanedTextureObjects;
+    },
+
+    takeOrGenerate: function ( gl, texture ) {
+
+        var textureObject;
+        if ( this._orphanedTextureObjects.length &gt; 0 ) {
+            textureObject = this.takeFromOrphans();
+            textureObject._texture = texture;
+            this._usedTextureObjects.push( textureObject );
+            return textureObject;
+        }
+
+        var textureID = gl.createTexture();
+        textureObject = new TextureObject( texture, textureID, this );
+        this._usedTextureObjects.push( textureObject );
+
+        return textureObject;
+    },
+
+    // get texture object from pool
+    takeFromOrphans: function () {
+
+        if ( this._orphanedTextureObjects.length )
+            return this._orphanedTextureObjects.pop();
+
+        return undefined;
+    },
+
+    // release texture object
+    orphan: function ( textureObject ) {
+        var index = this._usedTextureObjects.indexOf( textureObject );
+        if ( index !== -1 ) {
+            this._orphanedTextureObjects.push( this._usedTextureObjects[ index ] );
+            this._usedTextureObjects.splice( index, 1 );
+        }
+    },
+
+    flushDeletedTextureObjects: function ( gl, availableTime ) {
+        // if no time available don&#039;t try to flush objects.
+        if ( availableTime &lt;= 0.0 ) return availableTime;
+        var nbTextures = this._orphanedTextureObjects.length;
+        // Should we use a maxSizeTexturePool value?
+        //var size = this.getProfile().getSize();
+        // We need to test if we have time to flush
+        var elapsedTime = 0.0;
+        var beginTime = Timer.instance().tick();
+        var i;
+        for ( i = 0; i &lt; nbTextures &amp;&amp; elapsedTime &lt; availableTime; i++ ) {
+            gl.deleteTexture( this._orphanedTextureObjects[ i ].id() );
+            this._orphanedTextureObjects[ i ].reset();
+            elapsedTime = Timer.instance().deltaS( beginTime, Timer.instance().tick() );
+        }
+        this._orphanedTextureObjects.splice( 0, i );
+        return availableTime - elapsedTime;
+    },
+
+    flushAllDeletedTextureObjects: function ( gl ) {
+        var nbTextures = this._orphanedTextureObjects.length;
+        var size = this.getProfile().getSize();
+        for ( var i = 0, j = nbTextures; i &lt; j; ++i ) {
+            gl.deleteTexture( this._orphanedTextureObjects[ i ].id() );
+            this._orphanedTextureObjects[ i ].reset();
+        }
+        this._orphanedTextureObjects.length = 0;
+        Notify.info( &#039;TextureManager: released &#039; + nbTextures + &#039; with &#039; + ( nbTextures * size / ( 1024 * 1024 ) ) + &#039; MB&#039; );
+    }
+};
+
+
+var TextureManager = function () {
+    this._textureSetMap = {};
+};
+
+TextureManager.prototype = {
+
+    generateTextureObject: function ( gl,
+        texture,
+        target,
+        internalFormat,
+        width,
+        height ) {
+        var hash = TextureProfile.getHash( target, internalFormat, width, height );
+
+        if ( this._textureSetMap[ hash ] === undefined ) {
+            this._textureSetMap[ hash ] = new TextureObjectSet( new TextureProfile( target, internalFormat, width, height ) );
+        }
+
+        var textureSet = this._textureSetMap[ hash ];
+        var textureObject = textureSet.takeOrGenerate( gl, texture );
+        return textureObject;
+    },
+
+    updateStats: function ( frameNumber, rStats ) {
+        var totalUsed = 0;
+        var totalUnused = 0;
+        window.Object.keys( this._textureSetMap ).forEach( function ( key ) {
+            var profile = this._textureSetMap[ key ].getProfile();
+            var size = profile.getSize();
+            var nbUsed = this._textureSetMap[ key ].getUsedTextureObjects().length;
+            var nbUnused = this._textureSetMap[ key ].getOrphanedTextureObjects().length;
+            totalUsed += nbUsed * size;
+            totalUnused += nbUnused * size;
+        }, this );
+
+        var MB = 1024 * 1024;
+        rStats( &#039;textureused&#039; ).set( totalUsed / MB );
+        rStats( &#039;texturereserved&#039; ).set( totalUnused / MB );
+        rStats( &#039;texturetotal&#039; ).set( ( totalUsed + totalUnused ) / MB );
+    },
+
+    reportStats: function () {
+        var total = 0;
+        window.Object.keys( this._textureSetMap ).forEach( function ( key ) {
+            var profile = this._textureSetMap[ key ].getProfile();
+            var size = profile.getSize() / ( 1024 * 1024 );
+            var nb = this._textureSetMap[ key ].getUsedTextureObjects().length;
+            size *= nb;
+            total += size;
+            Notify.notice( String( size ) + &#039; MB with &#039; + nb + &#039; texture of &#039; + profile._width + &#039;x&#039; + profile._height + &#039; &#039; + profile._internalFormat );
+        }, this );
+        Notify.notice( String( total ) + &#039; MB in total&#039; );
+    },
+
+    flushAllDeletedTextureObjects: function ( gl ) {
+        window.Object.keys( this._textureSetMap ).forEach( function ( key ) {
+            this._textureSetMap[ key ].flushAllDeletedTextureObjects( gl );
+        }, this );
+    },
+
+    flushDeletedTextureObjects: function ( gl, availableTimeArg ) {
+        var availableTime = availableTimeArg;
+        var keys = window.Object.keys( this._textureSetMap );
+        for ( var i = 0, j = keys.length; i &lt; j &amp;&amp; availableTime &gt; 0.0; i++ ) {
+            availableTime = this._textureSetMap[ keys[ i ] ].flushDeletedTextureObjects( gl, availableTime );
+        }
+        return availableTime;
+    },
+
+    releaseTextureObject: function ( textureObject ) {
+        if ( textureObject ) {
+            var ts = textureObject.getTextureSet();
+            ts.orphan( textureObject );
+        }
+    }
+
+};
+
+module.exports = TextureManager;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

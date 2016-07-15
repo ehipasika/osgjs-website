@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShadow/ShadowCasterVisitor.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.50</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">120</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">29.98</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">0.74</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var BlendFunc = require( &#039;osg/BlendFunc&#039; );
+var Camera = require( &#039;osg/Camera&#039; );
+var Depth = require( &#039;osg/Depth&#039; );
+var Light = require( &#039;osg/Light&#039; );
+var LightSource = require( &#039;osg/LightSource&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+
+
+
+/*
+ * Remove nodes that shouldn&#039;t not be culled when casting
+ * like lights, camera with render texture targets,
+ * transparent (alphablended) geometries
+ * (otherwise it might break things)
+ * visits whole underlying scene recursively
+ */
+var ShadowCasterVisitor = function ( mask ) {
+    NodeVisitor.call( this );
+    // mask setting to avoid casting shadows
+    this._noCastMask = mask;
+    this._nodeList = [];
+};
+
+ShadowCasterVisitor.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( NodeVisitor.prototype, {
+    reset: function () {
+        this._nodeList = [];
+    },
+    removeNodeFromCasting: function ( node ) {
+
+        /*jshint bitwise: false */
+
+        var nm = node.getNodeMask();
+        // ~0x0 as not to be processed
+
+        if ( nm === ~0x0 ) {
+
+            // set to avoid casting shadow
+            nm = this._noCastMask;
+            node.setNodeMask( nm );
+            this._nodeList.push( node );
+
+        } else if ( ( nm &amp; ~( this._noCastMask ) ) !== 0 ) {
+
+            // set to avoid casting shadow
+            node.setNodeMask( nm | this._noCastMask );
+            this._nodeList.push( node );
+
+        }
+        /*jshint bitwise: true */
+
+    },
+    // Visiting whole casting scene recursively
+    apply: function ( node ) {
+
+        // check that and other things ?
+        // TODO: should check whole hierarchy to check for override/protected/etc
+        // Depth, BlendFunc Attributes...
+        var st = node.getStateSet();
+        if ( st ) {
+
+            // check for transparency not casting shadows
+            // as no alpha blending transparency shadow (no transmittance support)
+            var blend = st.getAttribute( &#039;BlendFunc&#039; );
+            if ( blend !== undefined &amp;&amp; blend.getSource() !== BlendFunc.DISABLE ) {
+                var depth = st.getAttribute( &#039;Depth&#039; );
+                if ( depth &amp;&amp; ( depth.getFunc() === Depth.DISABLE || depth.getWriteMask() === false ) ) {
+                    this.removeNodeFromCasting( node );
+                    return;
+                }
+            }
+        }
+
+        // check for lights, as lights are positionned attributes
+        if ( node.getTypeID() === Light.typeID || node.getTypeID() === LightSource.typeID ) {
+            this.removeNodeFromCasting( node );
+            return;
+        } else if ( node.getTypeID() === Camera.typeID &amp;&amp; node.isRenderToTextureCamera() ) {
+            // no &quot;Subrender&quot; when rendering the shadow map as from light point of view
+            this.removeNodeFromCasting( node );
+            return;
+        }
+        this.traverse( node );
+    },
+
+    setNoCastMask: function ( mask ) {
+        this._noCastMask = mask;
+    },
+
+    // restore to any previous mask avoiding any breaks
+    // in other application mask usage.
+    restore: function () {
+
+        for ( var i = 0, l = this._nodeList.length; i &lt; l; i++ ) {
+
+            var node = this._nodeList[ i ];
+            var nm = node.getNodeMask();
+
+            if ( nm === this._noCastMask ) {
+
+                node.setNodeMask( ~0x0 );
+
+            } else {
+
+                node.setNodeMask( nm &amp; ~this._noCastMask );
+
+            }
+
+        }
+
+    }
+
+
+} ), &#039;osgShadow&#039;, &#039;ShadowCasterVisitor&#039; );
+
+
+MACROUTILS.setTypeID( ShadowCasterVisitor );
+
+module.exports = ShadowCasterVisitor;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgAnimation/UpdateMorph.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">59.82</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">271</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">78.27</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.71</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var RigGeometry = require( &#039;osgAnimation/RigGeometry&#039; );
+var AnimationUpdateCallback = require( &#039;osgAnimation/AnimationUpdateCallback&#039; );
+var Target = require( &#039;osgAnimation/Target&#039; );
+var MorphGeometry = require( &#039;osgAnimation/MorphGeometry&#039; );
+
+var UpdateMorph = function () {
+    AnimationUpdateCallback.call( this );
+
+    this._isInitialized = false;
+    this._targets = []; // float target
+    this._targetNames = []; // names of targets
+    this._morphs = []; // the update morph can update several morphs
+
+    this._weights = new Float32Array( 4 );
+    // stuffs to handles &gt; 4 targets
+    this._indexMap = [ 0, 0, 0, 0 ]; // we map VA to the first 4th VA targets
+    this._gpuMorphed = []; // size of this._targets, for each target a bool states if it&#039;s gpu morphed or not
+};
+
+var EFFECTIVE_EPS = MorphGeometry.EFFECTIVE_EPS; // in case we have more than 4 morphs, we can skip low effective weights
+
+// for sorting
+var funcWeights = function ( a, b ) {
+    return Math.abs( b.value ) - Math.abs( a.value );
+};
+
+UpdateMorph.prototype = MACROUTILS.objectInherit( AnimationUpdateCallback.prototype, {
+
+    init: function ( node ) {
+        //Find the morph geometry &amp; init it
+        var children = node.getChildren();
+        for ( var i = 0, l = children.length; i &lt; l; i++ ) {
+
+            var geom = children[ i ];
+            var morph;
+            if ( geom instanceof MorphGeometry ) {
+                morph = geom;
+            } else if ( geom instanceof RigGeometry &amp;&amp; geom.getSourceGeometry() instanceof MorphGeometry ) {
+                morph = geom.getSourceGeometry();
+            }
+
+            if ( !morph ) continue;
+
+            if ( morph.getName() === this.getName() ) {
+                if ( !morph.isInitialized() )
+                    morph.init();
+
+                this._morphs.push( morph );
+                this._isInitialized = true;
+            }
+        }
+    },
+
+    isInitialized: function () {
+        return this._isInitialized;
+    },
+
+    getNumTarget: function () {
+        return this._targets.length;
+    },
+
+    getTarget: function ( index ) {
+        return this._targets[ index ];
+    },
+
+    getTargetName: function ( index ) {
+        return this._targetNames[ index ];
+    },
+
+    addTarget: function ( name, index ) {
+        this._targets[ index ] = Target.createFloatTarget( 0 );
+        this._targetNames[ index ] = name;
+    },
+
+    _remapBufferArrays: function () {
+
+        // basically, this function remaps all the active morphed VA to the 4th first morphTargets VA
+        var indexMap = this._indexMap;
+        var morphs = this._morphs;
+        for ( var i = 0; i &lt; 4; ++i ) {
+            var index = indexMap[ i ];
+            var strI = &#039;_&#039; + i;
+            var strIndex = &#039;_&#039; + index;
+
+            for ( var j = 0, nbMorphs = morphs.length; j &lt; nbMorphs; ++j ) {
+
+                var morph = morphs[ j ];
+                var vAttrs = morph.getVertexAttributeList();
+                var morphNames = morph.getMorphTargetNames();
+                for ( var k = 0, nbNames = morphNames.length; k &lt; nbNames; ++k ) {
+
+                    var attName = morphNames[ k ];
+                    vAttrs[ attName + strI ].setBufferArray( vAttrs[ attName + strIndex ].getInitialBufferArray() );
+
+                }
+            }
+        }
+    },
+
+    _mergeExtraMorphTarget: function ( attrs, attName, extraWeightSum ) {
+
+        var i = 0;
+        // ignore the gpu morphed
+        var gpuMorphed = this._gpuMorphed;
+        var vAttr = attrs[ attName ];
+        var vertexLen = vAttr.getElements().length;
+        var nbVertex = vertexLen / vAttr.getItemSize();
+        var itemSize = vAttr.getItemSize();
+
+        vAttr._cpuMorph = vAttr._cpuMorph || new BufferArray( BufferArray.ARRAY_BUFFER, new Float32Array( vertexLen ), itemSize );
+        var morphExtraTargets = vAttr._cpuMorph.getElements();
+        for ( i = 0; i &lt; vertexLen; ++i ) {
+            morphExtraTargets[ i ] = 0.0;
+        }
+
+        var targets = this._targets;
+        for ( var j = 0, nb = targets.length; j &lt; nb; ++j ) {
+
+            // ignore gpu morphed targets
+            if ( gpuMorphed[ j ] === true )
+                continue;
+
+            var weight = targets[ j ].value;
+            if ( Math.abs( weight ) &lt; EFFECTIVE_EPS )
+                continue;
+
+            weight /= extraWeightSum;
+
+            var morphElts = attrs[ attName + &#039;_&#039; + j ].getInitialBufferArray().getElements();
+            for ( i = 0; i &lt; nbVertex; ++i ) {
+
+                var k = i * itemSize;
+                morphExtraTargets[ k ] += weight * morphElts[ k ];
+                morphExtraTargets[ k + 1 ] += weight * morphElts[ k + 1 ];
+                morphExtraTargets[ k + 2 ] += weight * morphElts[ k + 2 ];
+                // don&#039;t morph tangent w component
+            }
+        }
+
+        // map on last index target
+        attrs[ attName + &#039;_3&#039; ].setBufferArray( vAttr._cpuMorph );
+        vAttr._cpuMorph.dirty();
+    },
+
+    _computeExtraWeightsSum: function () {
+        var gpuMorphed = this._gpuMorphed;
+        var sum = 0.0;
+        var targets = this._targets;
+        for ( var i = 0, nb = targets.length; i &lt; nb; ++i ) {
+
+            // ignore gpu morphed targets
+            if ( gpuMorphed[ i ] === true )
+                continue;
+
+            var weight = targets[ i ].value;
+            if ( Math.abs( weight ) &lt; EFFECTIVE_EPS )
+                continue;
+
+            sum += weight;
+        }
+        // check comment in _morphBufferArrayCPU (avoid near zero value)
+        var eps = 1e-5;
+        if ( Math.abs( sum ) &gt; eps ) return sum;
+        return sum &lt; 0.0 ? -eps : eps;
+    },
+
+    _morphBufferArrayCPU: function () {
+
+        // the idea is... we have :
+        // v&#039; = v * (1-w1-w2-w3) + t1*w1 + t2*w2 + t3*w3
+        // we want
+        // v&#039; = v * (1-w1-w4) + t1*w1 + t4*w4
+        // so basically we have to compute
+        // w4 = w2+w3 // (check if ~0 !)
+        // t4 = (t2*w2+t3*w3)/w4
+        // (w4 is extraWeightSum and t4 will be computed in _mergeExtraMorphTarget)
+
+        // compute new weights for the 4th target (all the extra target will be merged inside this one)
+        var extraWeightSum = this._weights[ 3 ] = this._computeExtraWeightsSum();
+
+        var processed = {}; // handles referenced buffer array (avoid useless double morph computation the same buffer)
+        var morphs = this._morphs;
+        for ( var i = 0, nbMorphs = morphs.length; i &lt; nbMorphs; ++i ) {
+
+            var morph = morphs[ i ];
+            var vAttrs = morph.getVertexAttributeList();
+            var morphNames = morph.getMorphTargetNames();
+
+            for ( var j = 0, nbNames = morphNames.length; j &lt; nbNames; ++j ) {
+
+                var name = morphNames[ j ];
+                var attr = vAttrs[ name ];
+                // skip if the bufferArray is shared in another morphGeometry and has already been cpu morphed
+                if ( !attr || processed[ attr.getInstanceID() ] ) continue;
+                processed[ attr.getInstanceID() ] = true;
+
+                this._mergeExtraMorphTarget( vAttrs, name, extraWeightSum );
+            }
+        }
+    },
+
+    updateWeights: function () {
+
+        var i = 0;
+        var targets = this._targets;
+        var nbTargets = targets.length;
+        // reset weights
+        var weights = this._weights;
+        weights[ 0 ] = weights[ 1 ] = weights[ 2 ] = weights[ 3 ] = 0.0;
+
+        // no need to swap VA or to use CPU morph
+        if ( nbTargets &lt;= 4 ) {
+            for ( i = 0; i &lt; nbTargets; ++i ) {
+                weights[ i ] = targets[ i ].value;
+            }
+            return;
+        }
+
+        // reset indexMap
+        var indexMap = this._indexMap;
+        indexMap[ 0 ] = indexMap[ 1 ] = indexMap[ 2 ] = indexMap[ 3 ] = 0;
+
+        // reset gpu morphed array
+        var gpuMorphed = this._gpuMorphed;
+        gpuMorphed.length = nbTargets;
+        for ( i = 0; i &lt; nbTargets; ++i ) gpuMorphed[ i ] = false;
+
+        var sortedTargets = targets.slice( 0 ).sort( funcWeights );
+
+        for ( i = 0; i &lt; 4; ++i ) {
+            var ti = targets.indexOf( sortedTargets[ i ] );
+            gpuMorphed[ ti ] = true;
+            indexMap[ i ] = ti;
+            weights[ i ] = sortedTargets[ i ].value;
+        }
+
+        // check more than 4 targets, we compute all the extra targets influence and merge in the last 4th morphs targets
+        var extraMorphCPU = Math.abs( sortedTargets[ 4 ].value ) &gt;= EFFECTIVE_EPS;
+        gpuMorphed[ indexMap[ 3 ] ] = !extraMorphCPU;
+
+        this._remapBufferArrays();
+        if ( extraMorphCPU ) {
+            this._morphBufferArrayCPU();
+        }
+    },
+
+    update: function ( node /*, nv*/ ) {
+        if ( !this.isInitialized() )
+            this.init( node );
+
+        this.updateWeights();
+
+        var weights = this._weights;
+        var nbTargets = Math.min( 4, this._targets.length );
+        var morphs = this._morphs;
+        for ( var i = 0, nbMorphs = morphs.length; i &lt; nbMorphs; ++i ) {
+
+            var array = morphs[ i ].getTargetsWeight();
+            for ( var j = 0; j &lt; nbTargets; j++ ) {
+                array[ j ] = weights[ j ];
+            }
+        }
+
+        return true;
+    }
+} );
+
+module.exports = UpdateMorph;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

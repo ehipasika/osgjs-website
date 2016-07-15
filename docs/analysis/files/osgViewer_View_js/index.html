@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgViewer/View.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">71.41</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">314</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">35.57</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.79</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var Camera = require( &#039;osg/Camera&#039; );
+var FrameStamp = require( &#039;osg/FrameStamp&#039; );
+var FrameBufferObject = require( &#039;osg/FrameBufferObject&#039; );
+var Light = require( &#039;osg/Light&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Texture = require( &#039;osg/Texture&#039; );
+var Program = require( &#039;osg/Program&#039; );
+var Shader = require( &#039;osg/Shader&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Viewport = require( &#039;osg/Viewport&#039; );
+var WebGLCaps = require( &#039;osg/WebGLCaps&#039; );
+var IntersectionVisitor = require( &#039;osgUtil/IntersectionVisitor&#039; );
+var LineSegmentIntersector = require( &#039;osgUtil/LineSegmentIntersector&#039; );
+var Renderer = require( &#039;osgViewer/Renderer&#039; );
+var Scene = require( &#039;osgViewer/Scene&#039; );
+var DisplayGraph = require( &#039;osgUtil/DisplayGraph&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+
+
+// View is normally inherited from osg/View. In osgjs we dont need it yet
+// this split, so everything is in osgViewer/View
+
+var View = function () {
+
+    this._camera = new Camera();
+    this._scene = new Scene();
+    this._frameStamp = new FrameStamp();
+    this._lightingMode = undefined;
+    this._manipulator = undefined;
+    this._canvasWidth = 0;
+    this._canvasHeight = 0;
+
+    this._requestContinousUpdate = true;
+    this._requestRedraw = true;
+
+    this.setLightingMode( View.LightingMode.HEADLIGHT );
+    // assign a renderer to the camera
+    var renderer = this.createRenderer( this.getCamera() );
+    renderer.setFrameStamp( this._frameStamp );
+    this.getCamera().setRenderer( renderer );
+    this.getCamera().setView( this );
+
+};
+
+View.LightingMode = {
+    NO_LIGHT: 0,
+    HEADLIGHT: 1,
+    SKY_LIGHT: 2
+};
+
+View.prototype = {
+    requestRedraw: function () {
+        this._requestRedraw = true;
+    },
+    requestContinuousUpdate: function ( bool ) {
+        this._requestContinousUpdate = bool;
+    },
+    createRenderer: function ( camera ) {
+        var render = new Renderer( camera );
+        //camera-&gt;setStats(new osg::Stats(&quot;Camera&quot;));
+        return render;
+    },
+
+    setGraphicContext: function ( gc ) {
+        this.getCamera().getRenderer().getState().setGraphicContext( gc );
+    },
+
+    getGraphicContext: function () {
+        return this.getCamera().getRenderer().getState().getGraphicContext();
+    },
+
+
+    initWebGLCaps: function ( gl ) {
+
+        WebGLCaps.instance( gl );
+
+    },
+
+    // check Each frame because HTML standard inconsistencies
+    // - mobile full-screen, device orientation, etc
+    // peculiarity of webgl canvas resizing here some details
+    // http://webglfundamentals.org/webgl/lessons/webgl-resizing-the-canvas.html
+    // screen size
+    // http://tripleodeon.com/2011/12/first-understand-your-screen/
+    // touchy is touchy: many things to know
+    // http://webglfundamentals.org/webgl/lessons/webgl-anti-patterns.html
+    computeCanvasSize: ( function () {
+        return function ( canvas ) {
+
+            var clientWidth, clientHeight;
+            clientWidth = canvas.clientWidth;
+            clientHeight = canvas.clientHeight;
+
+            if ( clientWidth &lt; 1 ) clientWidth = 1;
+            if ( clientHeight &lt; 1 ) clientHeight = 1;
+
+            var devicePixelRatio = this._devicePixelRatio;
+
+            var widthPixel = Math.floor( clientWidth * devicePixelRatio );
+            var heightPixel = Math.floor( clientHeight * devicePixelRatio );
+
+            var hasChanged = false;
+            if ( this._canvasWidth !== widthPixel ) {
+                canvas.width = widthPixel;
+                this._canvasWidth = widthPixel;
+                hasChanged = true;
+            }
+
+            if ( this._canvasHeight !== heightPixel ) {
+                canvas.height = heightPixel;
+                this._canvasHeight = heightPixel;
+                hasChanged = true;
+            }
+            return hasChanged;
+        };
+    } )(),
+
+    setUpView: function ( canvas, options ) {
+
+
+        var devicePixelRatio = window.devicePixelRatio || 1;
+        var overrideDevicePixelRatio = options.getNumber( &#039;overrideDevicePixelRatio&#039; );
+        var maxDevicePixelRatio = options.getNumber( &#039;maxDevicePixelRatio&#039; ) || -1;
+
+        // override the pixel ratio, used to save pixel on mobile
+        if ( typeof overrideDevicePixelRatio === &#039;number&#039; ) {
+            devicePixelRatio = overrideDevicePixelRatio;
+        } else if ( maxDevicePixelRatio !== -1 ) {
+            devicePixelRatio = Math.min( devicePixelRatio, maxDevicePixelRatio );
+        }
+        this._devicePixelRatio = devicePixelRatio;
+
+        this.computeCanvasSize( canvas );
+
+        var ratio = canvas.clientWidth / canvas.clientHeight;
+
+        var width = canvas.width;
+        var height = canvas.height;
+
+        this._camera.setViewport( new Viewport( 0, 0, width, height ) );
+
+        this._camera.setGraphicContext( this.getGraphicContext() );
+        Matrix.makeLookAt( Vec3.createAndSet( 0.0, 0.0, -10.0 ), Vec3.create(), Vec3.createAndSet( 0.0, 1.0, 0.0 ), this._camera.getViewMatrix() );
+        Matrix.makePerspective( 55, ratio, 1.0, 1000.0, this._camera.getProjectionMatrix() );
+
+
+        if ( options &amp;&amp; options.enableFrustumCulling )
+            this.getCamera().getRenderer().getCullVisitor().setEnableFrustumCulling( true );
+
+
+        // add a function to refresh the graph from the console
+        if ( options &amp;&amp; options.debugGraph ) {
+
+            var camera = this.getCamera();
+            DisplayGraph.instance().refreshGraph = function () {
+                var displayGraph = DisplayGraph.instance();
+                displayGraph.setDisplayGraphRenderer( true );
+                displayGraph.createGraph( camera );
+            };
+
+            Notify.log( &#039;to refresh the graphs type in the console:\nOSG.osgUtil.DisplayGraph.instance().refreshGraph()&#039; );
+
+        }
+
+    },
+
+    /**
+     * X = 0 at the left
+     * Y = 0 at the BOTTOM
+     */
+    computeIntersections: function ( x, y, traversalMask ) {
+
+        /*jshint bitwise: false */
+        if ( traversalMask === undefined ) {
+            traversalMask = ~0;
+        }
+        /*jshint bitwise: true */
+
+
+        if ( !this._lsi ) {
+            this._lsi = new LineSegmentIntersector();
+        } else {
+            this._lsi.reset();
+        }
+
+        if ( !this._origIntersect ) {
+            this._origIntersect = Vec3.create();
+            this._dstIntersect = Vec3.create();
+        }
+
+        this._lsi.set( Vec3.set( x, y, 0.0, this._origIntersect ), Vec3.set( x, y, 1.0, this._dstIntersect ) );
+
+
+        if ( !this._iv ) {
+            this._iv = new IntersectionVisitor();
+            this._iv.setIntersector( this._lsi );
+        } else {
+            this._iv.reset();
+        }
+        this._iv.setTraversalMask( traversalMask );
+        this._camera.accept( this._iv );
+
+        return this._lsi.getIntersections();
+    },
+
+    setFrameStamp: function ( frameStamp ) {
+        this._frameStamp = frameStamp;
+    },
+
+    getFrameStamp: function () {
+        return this._frameStamp;
+    },
+
+    setCamera: function ( camera ) {
+        this._camera = camera;
+    },
+
+    getCamera: function () {
+        return this._camera;
+    },
+
+    setSceneData: function ( node ) {
+
+        if ( node === this._scene.getSceneData() )
+            return;
+
+        this._scene.setSceneData( node );
+
+        this._camera.removeChildren();
+        this._camera.addChild( node );
+
+    },
+
+    getSceneData: function () {
+        return this._scene.getSceneData();
+    },
+
+    setDatabasePager: function ( dbpager ) {
+        this._scene.setDatabasePager( dbpager );
+    },
+
+    getDatabasePager: function () {
+        return this._scene.getDatabasePager();
+    },
+
+    getScene: function () {
+        return this._scene;
+    },
+
+    getManipulator: function () {
+        return this._manipulator;
+    },
+
+    setManipulator: function ( manipulator ) {
+        this._manipulator = manipulator;
+    },
+
+    getLight: function () {
+        return this._light;
+    },
+
+    setLight: function ( light ) {
+        this._light = light;
+        if ( this._lightingMode !== View.LightingMode.NO_LIGHT ) {
+            this._scene.getOrCreateStateSet().setAttributeAndModes( this._light );
+        }
+    },
+
+    getLightingMode: function () {
+        return this._lightingMode;
+    },
+
+    setLightingMode: function ( lightingMode ) {
+
+        if ( this._lightingMode !== lightingMode ) {
+            this._lightingMode = lightingMode;
+
+            if ( this._lightingMode !== View.LightingMode.NO_LIGHT ) {
+
+                if ( !this._light ) this._light = new Light();
+
+            } else {
+                this._light = undefined;
+            }
+        }
+    },
+
+    // In OSG this call is done in SceneView
+    flushDeletedGLObjects: function ( /*currentTime,*/ availableTime ) {
+        // Flush all deleted OpenGL objects within the specified availableTime
+        var gl = this.getGraphicContext();
+        availableTime = BufferArray.flushDeletedGLBufferArrays( gl, availableTime );
+        availableTime = Texture.getTextureManager( gl ).flushDeletedTextureObjects( gl, availableTime );
+        availableTime = Program.flushDeletedGLPrograms( gl, availableTime );
+        availableTime = Shader.flushDeletedGLShaders( gl, availableTime );
+        availableTime = FrameBufferObject.flushDeletedGLFrameBuffers( gl, availableTime );
+        availableTime = FrameBufferObject.flushDeletedGLRenderBuffers( gl, availableTime );
+    },
+
+    flushAllDeletedGLObjects: function () {
+        // Flush all deleted OpenGL objects
+        var gl = this.getGraphicContext();
+        BufferArray.flushAllDeletedGLBufferArrays( gl );
+        Texture.getTextureManager( gl ).flushAllDeletedTextureObjects( gl );
+        Program.flushAllDeletedGLPrograms( gl );
+        Shader.flushAllDeletedGLShaders( gl );
+        FrameBufferObject.flushAllDeletedGLFrameBuffers( gl );
+        FrameBufferObject.flushAllDeletedGLRenderBuffers( gl );
+    }
+};
+
+module.exports = View;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

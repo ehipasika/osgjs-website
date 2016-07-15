@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/TimerGPU.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">63.49</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">315</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">61.20</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.97</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+
+// use EXT_disjoint_timer_query
+// to time webgl calls GPU side
+// average over multiple frames
+// for consistent results
+// use double buffer queries for that.
+// see http://www.reedbeta.com/blog/2011/10/12/gpu-profiling-101/
+var TimerGPU = function ( gl ) {
+
+    this._enabled = false;
+
+    if ( gl ) {
+
+        var ext = gl.getExtension( &#039;EXT_disjoint_timer_query&#039; );
+        if ( !ext ) return this;
+
+        // https://github.com/KhronosGroup/WebGL/blob/master/sdk/tests/conformance/extensions/ext-disjoint-timer-query.html#L102
+        // run the page if strange results
+        // to validate you gpu/browser has correct gpu queries support
+        this._hasTimeElapsed = ext.getQueryEXT( ext.TIME_ELAPSED_EXT, ext.QUERY_COUNTER_BITS_EXT ) &gt;= 30;
+        this._hasTimeStamp = ext.getQueryEXT( ext.TIMESTAMP_EXT, ext.QUERY_COUNTER_BITS_EXT ) &gt;= 30;
+
+        if ( !this._hasTimeElapsed &amp;&amp; !this._hasTimeStamp ) {
+            return this;
+        }
+
+        // no timestamp means not start/end absolute time
+        // which means each start must be followed by a end
+        // BEFORE any other start (of other queryID)
+        if ( !this._hasTimeStamp ) {
+            Notify.warn( &#039;Warning: do not use interleaved GPU query&#039; );
+        }
+
+        this._gl = gl;
+        this._glTimer = ext;
+        this._enabled = true;
+
+    }
+
+    // those we seek results of
+    // (all query per frame)
+    // double Buffered
+    this._pollingStartQueries = {};
+    this._pollingEndQueries = {};
+    // query list currently recording
+    // between a start and a end query
+    this._runningQueries = {};
+    // number of query asked (current index query per queryID)
+    this._timingCountQuery = {};
+    // number of query answered with results
+    this._resultCountQuery = {};
+    // cumulative average
+    this._averageTimerQuery = {};
+    // query waiting async results from GPU
+    this._waitingQueries = {};
+    // cumulative average on N frame
+    // reset &amp; restart every N frames
+    this._frameAverageCount = 30;
+};
+
+TimerGPU.instance = function ( gl ) {
+
+    if ( !TimerGPU._instance ) {
+        TimerGPU._instance = new TimerGPU( gl );
+    } else if ( gl &amp;&amp; TimerGPU._instance.getContext() !== gl ) {
+        TimerGPU._instance.setContext( gl );
+    }
+    return TimerGPU._instance;
+
+};
+
+TimerGPU.prototype = {
+
+    getContext: function () {
+        return this._gl;
+    },
+    setContext: function ( gl ) {
+        this._gl = gl;
+    },
+    setFrameAverageCount: function ( val ) {
+        this._frameAverageCount = val;
+    },
+
+    // when timing same thing
+    // but under new conditions
+    reset: function ( queryID ) {
+
+        this._timingCountQuery[ queryID ] = 0;
+        this._averageTimerQuery[ queryID ] = 0.0;
+        this._resultCountQuery[ queryID ] = 0;
+
+    },
+
+    supportInterleaveQuery: function () {
+        return this._hasTimeStamp;
+    },
+
+    // many browser doesn&#039;t yet have
+    // the marvellous gpu timers
+    enable: function () {
+        // enable only if we have the extension
+        this._enabled = this._glTimer;
+    },
+
+    disable: function () {
+        this._enabled = false;
+    },
+    isEnabled: function () {
+        return this._enabled;
+    },
+
+    setCallback: function ( cb ) {
+        this._callback = cb;
+    },
+
+    // start recording time
+    // if query already exist, don&#039;t recreate
+    start: function ( queryID ) {
+
+        // If timing currently disabled or glTimer does not exist, exit early.
+        if ( !this._enabled ) {
+            return undefined;
+        }
+
+
+        if ( !this._timingCountQuery[ queryID ] ) {
+
+            this._resultCountQuery[ queryID ] = 0;
+            this._timingCountQuery[ queryID ] = 0;
+            this._averageTimerQuery[ queryID ] = 0.0;
+            this._pollingStartQueries[ queryID ] = {};
+            this._pollingEndQueries[ queryID ] = {};
+            this._waitingQueries[ queryID ] = [];
+
+        } else {
+
+            // poll glTimer for data for last frames queries
+            this.pollQueriesData( queryID );
+        }
+
+        var pollIndex = this._timingCountQuery[ queryID ];
+
+        var startQuery = this._glTimer.createQueryEXT();
+        this._pollingStartQueries[ queryID ][ pollIndex ] = startQuery;
+
+        if ( this._hasTimeStamp ) {
+
+            var endQuery = this._glTimer.createQueryEXT();
+            this._pollingEndQueries[ queryID ][ pollIndex ] = endQuery;
+
+            this._glTimer.queryCounterEXT( startQuery, this._glTimer.TIMESTAMP_EXT );
+
+        } else {
+
+            this._glTimer.beginQueryEXT( this._glTimer.TIME_ELAPSED_EXT, startQuery );
+        }
+
+        this._runningQueries[ queryID ] = startQuery;
+
+        return startQuery;
+
+    },
+    /*
+     * stop query recording   (if running)
+     * polls for results
+     */
+    end: function ( queryID ) {
+
+        if ( !this._enabled ) {
+            return;
+        }
+
+
+
+        var query = this._runningQueries[ queryID ];
+
+        // End currently running query
+        if ( query ) {
+
+            var pollIndex = this._timingCountQuery[ queryID ];
+
+            if ( this._hasTimeStamp ) {
+
+                var endQuery = this._pollingEndQueries[ queryID ][ pollIndex ];
+                this._glTimer.queryCounterEXT( endQuery, this._glTimer.TIMESTAMP_EXT );
+
+            } else {
+
+                this._glTimer.endQueryEXT( this._glTimer.TIME_ELAPSED_EXT );
+
+            }
+            this._runningQueries[ queryID ] = undefined;
+
+            // number of finished queries per ID increments.
+            this._timingCountQuery[ queryID ]++;
+
+            this._waitingQueries[ queryID ].push( pollIndex );
+
+        }
+
+    },
+
+
+    // results are async
+    pollQueryData: function ( queryID, pollIndex ) {
+
+        // last to be queried
+        var lastQuery = this._hasTimeStamp ? this._pollingEndQueries[ queryID ][ pollIndex ] : this._pollingStartQueries[ queryID ][ pollIndex ];
+
+        // wait till results are ready
+        var available = this._glTimer.getQueryObjectEXT( lastQuery, this._glTimer.QUERY_RESULT_AVAILABLE_EXT );
+
+        if ( !available ) return null;
+
+        var disjoint = this._gl.getParameter( this._glTimer.GPU_DISJOINT_EXT );
+
+        if ( disjoint ) return null;
+
+
+        var timeElapsed;
+
+        if ( this._hasTimeStamp ) {
+
+            var startQuery = this._pollingStartQueries[ queryID ][ pollIndex ];
+
+            var startTime = this._glTimer.getQueryObjectEXT( startQuery, this._glTimer.QUERY_RESULT_EXT );
+            var endTime = this._glTimer.getQueryObjectEXT( lastQuery, this._glTimer.QUERY_RESULT_EXT );
+            timeElapsed = endTime - startTime;
+
+            //free slots
+            this._glTimer.deleteQueryEXT( lastQuery );
+            this._pollingEndQueries[ queryID ][ pollIndex ] = undefined;
+            this._glTimer.deleteQueryEXT( startQuery );
+            this._pollingStartQueries[ queryID ][ pollIndex ] = undefined;
+
+        } else {
+
+            timeElapsed = this._glTimer.getQueryObjectEXT( lastQuery, this._glTimer.QUERY_RESULT_EXT );
+
+            //free slots
+            this._glTimer.deleteQueryEXT( lastQuery );
+            this._pollingStartQueries[ queryID ][ pollIndex ] = undefined;
+
+        }
+
+
+        if ( timeElapsed === 0 ) return undefined;
+
+
+        this._resultCountQuery[ queryID ]++;
+
+        // store results
+        var lastTime = this._averageTimerQuery[ queryID ];
+        var resultCount = this._resultCountQuery[ queryID ];
+
+        // restart cumulative average every frameAveragecount frames
+        if ( resultCount &gt; this._frameAverageCount ) {
+
+            this.reset( queryID );
+            // we have one result
+            this._resultCountQuery[ queryID ]++;
+            lastTime = 0;
+
+        }
+
+
+        var cumulativeAverage;
+        if ( lastTime === 0 ) {
+            cumulativeAverage = timeElapsed;
+        } else {
+            // https://en.wikipedia.org/wiki/Moving_average#Cumulative_moving_average
+            cumulativeAverage = lastTime + ( ( timeElapsed - lastTime ) / ( resultCount ) );
+        }
+        this._averageTimerQuery[ queryID ] = cumulativeAverage;
+
+        return cumulativeAverage;
+
+    },
+
+    // results are async
+    pollQueriesData: function ( queryID ) {
+
+        var average;
+        var self = this;
+        var queries = this._waitingQueries[ queryID ];
+
+        queries = queries.filter( function ( pollIndex ) {
+
+            // check if result ready
+            var res = self.pollQueryData( queryID, pollIndex );
+
+            // not ready we keep it in waiting queue
+            if ( res === null ) return true;
+            // ready, but discarded
+            if ( res === undefined ) return false;
+
+            average = res;
+            // remove from waiting queue
+            return false;
+
+        } );
+        this._waitingQueries[ queryID ] = queries;
+
+        // only bother client side if we have results
+        if ( average !== undefined &amp;&amp; this._callback ) {
+            this._callback( average, queryID );
+        }
+    }
+
+};
+
+
+module.exports = TimerGPU;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

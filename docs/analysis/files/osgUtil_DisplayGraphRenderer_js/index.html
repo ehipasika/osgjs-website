@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/DisplayGraphRenderer.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">60.35</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">233</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">60.10</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.56</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var DisplayGraphNode = require( &#039;osgUtil/DisplayGraphNode&#039; );
+var RenderBin = require( &#039;osg/RenderBin&#039; );
+
+var DisplayGraphRenderer = function ( selectables ) {
+
+    this._selectables = selectables;
+    this._nodeList = [];
+    this._linkList = [];
+
+    this._renderBinMap = new window.Map();
+    this._renderBinStack = [];
+
+    this._generatorID = 0;
+    this._refID = 0; // invalide old _instanceID if we recreate the graph
+
+    this._uniqueEdges = new window.Set();
+};
+
+DisplayGraphRenderer.prototype = {
+    getColorFromClassName: DisplayGraphNode.prototype.getColorFromClassName,
+
+    createGraph: function ( renderBin ) {
+        this.reset();
+        this.apply( renderBin );
+    },
+
+    reset: function () {
+        this._renderBinMap.clear();
+        this._renderBinStack.length = 0;
+        this._generatorID = 0;
+        this._refID++;
+
+        this._nodeList.length = 0;
+        this._linkList.length = 0;
+
+        this._uniqueEdges.clear();
+    },
+
+    apply: function ( rb ) {
+
+        var instanceID = rb.getInstanceID();
+        if ( !this._renderBinMap.has( instanceID ) ) {
+            this._renderBinMap.set( instanceID, rb );
+        }
+
+        this._renderBinStack.push( rb );
+
+        // pre render stage if render stage node
+        if ( rb.getPreRenderStageList ) {
+            var preRenderList = rb.getPreRenderStageList();
+            for ( var i = 0, ni = preRenderList.length; i &lt; ni; ++i ) {
+                this.apply( preRenderList[ i ].renderStage );
+            }
+        }
+
+        // draw implementation
+        // handle rs camera
+        this.registerNode( rb );
+
+        // post render stage if render stage node
+        if ( rb.getPostRenderStageList ) {
+            var postRenderList = rb.getPostRenderStageList();
+            for ( var j = 0, nj = postRenderList.length; j &lt; nj; ++j ) {
+                this.apply( postRenderList[ j ].renderStage );
+            }
+        }
+
+        this._renderBinStack.pop();
+    },
+
+    registerNode: function ( rb ) {
+
+        var childID = rb.getInstanceID();
+
+        this._nodeList.push( rb );
+
+        // register bins
+        var bins = rb._bins;
+        var binKeys = window.Object.keys( bins );
+        for ( var i = 0, ni = binKeys.length; i &lt; ni; i++ ) {
+            var bin = bins[ binKeys[ i ] ];
+            this.apply( bin );
+        }
+
+        // register fine grained leafs
+        if ( rb._leafs.length ) {
+            for ( var j = 0, nj = rb._leafs.length; j &lt; nj; j++ ) {
+                this.createNodeAndSetID( childID, rb._leafs[ j ] );
+            }
+        }
+
+        // register coarse grained leafs
+        for ( var k = 0, nk = rb.stateGraphList.length; k &lt; nk; k++ ) {
+            var sg = rb.stateGraphList[ k ];
+            this.createNodeAndSetID( childID, sg );
+            var stateGraphID = sg._instanceID;
+            for ( var l = 0, nl = sg.leafs.length; l &lt; nl; l++ )
+                this.createNodeAndSetID( stateGraphID, sg.leafs[ l ] );
+        }
+
+
+        // no parent no link
+        if ( this._renderBinStack.length &lt; 2 )
+            return;
+
+        var parentID = this._renderBinStack[ this._renderBinStack.length - 2 ].getInstanceID();
+        this.createLink( parentID, childID );
+    },
+
+    createLink: function ( parent, child ) {
+        var key = parent + &#039;+&#039; + child;
+        if ( !this._uniqueEdges.has( key ) ) {
+            this._linkList.push( {
+                parentNode: parent,
+                childrenNode: child
+            } );
+            this._uniqueEdges.add( key );
+        }
+    },
+
+    createNodeAndSetID: function ( parentID, node ) {
+
+        // register render leaf
+        this._nodeList.push( node );
+
+        // generate fake id &lt; 0 because RenderLeaf does not inherit from Object
+        if ( node._instanceID === undefined || ( node._instanceID &lt; 0 &amp;&amp; node._refID !== this._refID ) ) {
+            node._instanceID = -1 - this._generatorID++;
+            node._refID = this._refID;
+        }
+
+        this.createLink( parentID, node._instanceID );
+    },
+
+    generateRenderLeaf: function ( g, node ) {
+
+        var instanceID = node._instanceID;
+        var className = &#039;RenderLeaf&#039;;
+        var geomName = node._geometry &amp;&amp; node._geometry.getName() ? &#039;\n&#039; + node._geometry.getName() : &#039;Geometry&#039;;
+
+        var label = className + &#039; ( &#039; + node._instanceID + &#039; )&#039;;
+        label += &#039;\n&#039; + geomName + &#039; ( &#039; + node._geometry.getInstanceID() + &#039; )&#039;;
+
+        this._selectables.set( instanceID.toString(), node );
+        g.addNode( instanceID, {
+            label: label,
+            description: &#039;&#039;,
+            style: &#039;fill: &#039; + this.getColorFromClassName( className ) + &#039;;stroke-width: 0px;&#039;
+        } );
+    },
+
+    generateStateGraph: function ( g, node ) {
+
+        var instanceID = node._instanceID;
+        var className = &#039;StateGraph&#039;;
+        var label = className + &#039; ( &#039; + node._instanceID + &#039; )&#039;;
+        label += &#039;\n&#039; + node.leafs.length + &#039; leafs&#039;;
+
+        this._selectables.set( instanceID.toString(), node );
+        g.addNode( instanceID, {
+            label: label,
+            description: &#039;&#039;,
+            style: &#039;fill: &#039; + this.getColorFromClassName( className ) + &#039;;stroke-width: 0px;&#039;
+        } );
+    },
+
+    generateRenderStage: function ( g, node ) {
+
+        var label = node.className() + &#039; ( &#039; + node._instanceID + &#039; )&#039;;
+        if ( node.getName() ) label += &#039;\n&#039; + node.getName();
+        label += &#039;\nViewport ( &#039; + node.getViewport().width() + &#039; x &#039; + node.getViewport().height() + &#039; )&#039;;
+
+        this._selectables.set( node.getInstanceID().toString(), node );
+        g.addNode( node.getInstanceID(), {
+            label: label,
+            description: &#039;&#039;,
+            style: &#039;fill: &#039; + this.getColorFromClassName( node.className() ) + &#039;;stroke-width: 0px;&#039;
+        } );
+
+    },
+
+    generateRenderBin: function ( g, rb ) {
+
+        var label = rb.className() + &#039; ( &#039; + rb.getInstanceID() + &#039; )&#039;;
+        if ( rb.getName() ) label += &#039;\n&#039; + rb.getName();
+
+        var sortMode = &#039;&#039;;
+        if ( rb.getSortMode() === RenderBin.SORT_BACK_TO_FRONT )
+            sortMode = &#039;SortMode: BackToFront&#039;;
+
+        var description = &#039;BinNumber: &#039; + rb.getBinNumber() + &#039;\n&#039; + sortMode;
+
+        this._selectables.set( rb.getInstanceID().toString(), rb );
+        g.addNode( rb.getInstanceID(), {
+            label: label,
+            description: description,
+            style: &#039;fill: &#039; + this.getColorFromClassName( rb.className() ) + &#039;;stroke-width: 0px;&#039;
+        } );
+
+    },
+
+    // Subfunction of createGraph, will iterate to create all the node and link in dagre
+    generateNodeAndLink: function ( g ) {
+        for ( var i = 0, ni = this._nodeList.length; i &lt; ni; i++ ) {
+
+            var node = this._nodeList[ i ];
+
+            // detect if RenderLeaf
+            if ( node._geometry &amp;&amp; node._depth !== undefined ) {
+                this.generateRenderLeaf( g, node );
+
+            } else if ( node.depth !== undefined &amp;&amp; node.leafs &amp;&amp; node.children ) {
+                // it&#039;s StateGraph
+                this.generateStateGraph( g, node );
+
+            } else if ( node.className() === &#039;RenderStage&#039; ) {
+                this.generateRenderStage( g, node );
+
+            } else {
+                // it&#039;s a RenderBin
+                this.generateRenderBin( g, node );
+            }
+
+        }
+
+        for ( var j = 0, nj = this._linkList.length; j &lt; nj; j++ ) {
+            g.addEdge( null, this._linkList[ j ].parentNode, this._linkList[ j ].childrenNode );
+        }
+    }
+};
+
+module.exports = DisplayGraphRenderer;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

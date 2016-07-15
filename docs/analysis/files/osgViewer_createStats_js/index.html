@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgViewer/createStats.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">47.06</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">135</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">12.81</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.02</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+
+var BrowserStats = window.BrowserStats;
+var glStats = window.glStats;
+var rStats = window.rStats;
+
+var CanvasStats = function () {
+
+    this.bS = new BrowserStats();
+    this.glS = new glStats();
+
+    this.rStats = new rStats( {
+        values: {
+            frame: {
+                caption: &#039;Total frame time (ms)&#039;,
+                over: 16,
+                average: true
+            },
+            fps: {
+                caption: &#039;Framerate (FPS)&#039;,
+                below: 30
+            },
+            calls: {
+                caption: &#039;Calls (three.js)&#039;,
+                over: 3000
+            },
+            raf: {
+                caption: &#039;Time since last rAF (ms)&#039;,
+                average: true,
+                avgMs: 500
+            },
+            rstats: {
+                caption: &#039;rStats update (ms)&#039;,
+                average: true,
+                avgMs: 100
+            },
+            update: {
+                caption: &#039;update&#039;,
+                average: true
+            },
+            cull: {
+                caption: &#039;cull&#039;,
+                average: true
+            },
+            render: {
+                caption: &#039;render&#039;,
+                average: true
+            },
+            textureused: {
+                caption: &#039;texture used&#039;
+            },
+            texturereserved: {
+                caption: &#039;texture reserved&#039;
+            },
+            texturetotal: {
+                caption: &#039;texture total&#039;
+            },
+
+            pushstateset: {
+                caption: &#039;num pushStateSet&#039;
+            },
+            updatecallback: {
+                caption: &#039;num updateCallback&#039;
+            },
+
+            cullcamera: {
+                caption: &#039;camera&#039;
+            },
+            cullmatrixtransform: {
+                caption: &#039;matrixTransform&#039;
+            },
+            cullprojection: {
+                caption: &#039;projection&#039;
+            },
+            cullnode: {
+                caption: &#039;node&#039;
+            },
+            culllightsource: {
+                caption: &#039;lightSource&#039;
+            },
+            cullgeometry: {
+                caption: &#039;geometry&#039;
+            }
+
+        },
+        groups: [ {
+            caption: &#039;Framerate&#039;,
+            values: [ &#039;fps&#039;, &#039;raf&#039; ]
+        }, {
+            caption: &#039;Frame Budget&#039;,
+            values: [ &#039;frame&#039;, &#039;update&#039;, &#039;cull&#039;, &#039;render&#039; ]
+        }, {
+            caption: &#039;Scene Graph&#039;,
+            values: [ &#039;pushstateset&#039;, &#039;updatecallback&#039; ]
+        }, {
+            caption: &#039;Cull&#039;,
+            values: [ &#039;cullnode&#039;, &#039;cullmatrixtransform&#039;, &#039;cullgeometry&#039;, &#039;cullcamera&#039;, &#039;culllighsource&#039;, &#039;cullprojection&#039; ]
+        }, {
+            caption: &#039;Texture Memory&#039;,
+            values: [ &#039;texturereserved&#039;, &#039;textureused&#039;, &#039;texturetotal&#039; ]
+        } ],
+        fractions: [ {
+            base: &#039;frame&#039;,
+            steps: [ &#039;update&#039;, &#039;cull&#039;, &#039;render&#039; ]
+        } ],
+        plugins: [
+            this.bS,
+            this.glS
+        ],
+        colours: [ &#039;#cc9933&#039;, &#039;#f20041&#039;, &#039;#69818c&#039;, &#039;#d90074&#039;, &#039;#b6f2ee&#039;, &#039;#660044&#039;, &#039;#50664d&#039;, &#039;#330022&#039;, &#039;#f2eeb6&#039;, &#039;#ee00ff&#039;, &#039;#806460&#039;, &#039;#1600a6&#039;, &#039;#994d57&#039;, &#039;#00004d&#039;, &#039;#f279da&#039;, &#039;#002933&#039;, &#039;#395073&#039;, &#039;#00eeff&#039;, &#039;#79baf2&#039;, &#039;#008066&#039;, &#039;#79f2aa&#039;, &#039;#00ff66&#039;, &#039;#1a331d&#039;, &#039;#004d14&#039;, &#039;#8c6c46&#039;, &#039;#388c00&#039;, &#039;#602080&#039;, &#039;#ff8800&#039;, &#039;#6d3df2&#039;, &#039;#995200&#039;, &#039;#0d1233&#039;, &#039;#402200&#039;, &#039;#3d6df2&#039;, &#039;#330e00&#039;, &#039;#e6f23d&#039;, &#039;#730000&#039; ]
+    } );
+
+};
+
+var createStats = function () {
+    // in case the deps are not here
+    if ( !rStats ) return undefined;
+
+
+    var css = &#039;.rs-base{ position: absolute; z-index: 10000; padding: 10px; background-color: #222; font-size: 12px; line-height: 1.2em; width: 350px; font-family: \&#039;Roboto Condensed\&#039;, tahoma, sans-serif; left: 0; top: 0; overflow: hidden; } .rs-base h1{ margin: 0; padding: 0; font-size: 1.4em; color: #fff; margin-bottom: 5px; cursor: pointer; } .rs-base div.rs-group{ margin-bottom: 10px; } .rs-base div.rs-group.hidden{ display: none; } .rs-base div.rs-fraction{ position: relative; margin-bottom: 5px; } .rs-base div.rs-fraction p{ width: 145px; text-align: right; margin: 0; padding: 0; } .rs-base div.rs-legend{ position: absolute; line-height: 1em; } .rs-base div.rs-counter-base{ position: relative; margin: 2px 0; height: 1em; } .rs-base span.rs-counter-id{ position: absolute; left: 0; top: 0; } .rs-base div.rs-counter-value{ position: absolute; left: 115px; width: 30px; height: 1em; top: 0; text-align: right; } .rs-base canvas.rs-canvas{ position: absolute; right: 0; } &#039;,
+        head = document.head || document.getElementsByTagName( &#039;head&#039; )[ 0 ],
+        style = document.createElement( &#039;style&#039; );
+
+    style.type = &#039;text/css&#039;;
+    if ( style.styleSheet ) {
+        style.styleSheet.cssText = css;
+    } else {
+        style.appendChild( document.createTextNode( css ) );
+    }
+    head.appendChild( style );
+
+    return new CanvasStats();
+};
+
+module.exports = createStats;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

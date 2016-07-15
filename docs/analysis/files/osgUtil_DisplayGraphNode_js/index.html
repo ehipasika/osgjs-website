@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/DisplayGraphNode.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">61.06</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">201</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">38.96</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.15</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var MorphGeometry = require( &#039;osgAnimation/MorphGeometry&#039; );
+
+var DisplayGraphNode = function ( selectables ) {
+    NodeVisitor.call( this, NodeVisitor.TRAVERSE_ALL_CHILDREN );
+
+    this._selectables = selectables;
+    this._nodeList = [];
+    this._linkList = [];
+
+    // don&#039;t reference twice same node
+    this._uniqueNodes = new window.Set();
+    this._uniqueEdges = new window.Set();
+};
+
+DisplayGraphNode.prototype = MACROUTILS.objectInherit( NodeVisitor.prototype, {
+    getColorFromClassName: function ( name ) {
+        switch ( name ) {
+        case &#039;ShadowedScene&#039;:
+            return &#039;#3D3D3D&#039;;
+        case &#039;Camera&#039;:
+            return &#039;#AB7BCF&#039;;
+        case &#039;RenderBin&#039;:
+            return &#039;#59778B&#039;;
+        case &#039;LightSource&#039;:
+            return &#039;#53967D&#039;;
+        case &#039;RenderStage&#039;:
+            return &#039;#DDCC55&#039;;
+        case &#039;RenderLeaf&#039;:
+        case &#039;Geometry&#039;:
+            return &#039;#FFCC55&#039;;
+        case &#039;RigGeometry&#039;:
+            return &#039;#DD8800&#039;;
+        case &#039;MorphGeometry&#039;:
+            return &#039;#AA5500&#039;;
+        case &#039;MatrixTransform&#039;:
+            return &#039;#CE697E&#039;;
+        case &#039;StateSet&#039;:
+            return &#039;#0099FF&#039;;
+        case &#039;StateGraph&#039;:
+        case &#039;Skeleton&#039;:
+            return &#039;#96999E&#039;;
+        case &#039;Bone&#039;:
+            return &#039;#A9DEAA&#039;;
+        case &#039;Node&#039;:
+            return &#039;#FFFFFF&#039;;
+        default:
+            return &#039;#FF00AA&#039;;
+        }
+    },
+
+    createGraph: function ( root ) {
+        this.reset();
+        root.accept( this );
+    },
+
+    reset: function () {
+        this._nodeList.length = 0;
+        this._linkList.length = 0;
+        this._uniqueNodes.clear();
+        this._uniqueEdges.clear();
+    },
+
+    apply: function ( node ) {
+        if ( node._isNormalDebug )
+            return;
+
+        if ( !this._uniqueNodes.has( node.getInstanceID() ) ) {
+            this._uniqueNodes.add( node.getInstanceID() );
+            this._nodeList.push( node );
+        }
+
+        if ( this.nodePath.length &gt;= 2 ) {
+            var parentID = this.nodePath[ this.nodePath.length - 2 ].getInstanceID();
+            var childID = node.getInstanceID();
+            var key = parentID + &#039;+&#039; + childID;
+            if ( !this._uniqueEdges.has( key ) ) {
+                this._linkList.push( {
+                    parentNode: parentID,
+                    childrenNode: childID
+                } );
+                this._uniqueEdges.add( key );
+            }
+        }
+
+        this.traverse( node );
+    },
+
+    // Create an array to display the matrix
+    createMatrixGrid: function ( node, matrixArray ) {
+
+        var nodeMatrix = &#039;&#039;;
+
+        nodeMatrix += &#039;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&#039; + matrixArray[ 0 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 4 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 8 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 12 ] + &#039;&lt;/td&gt;&lt;/tr&gt;&#039;;
+
+        nodeMatrix += &#039;&lt;tr&gt;&lt;td&gt;&#039; + matrixArray[ 1 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 5 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 9 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 13 ] + &#039;&lt;/td&gt;&lt;/tr&gt;&#039;;
+
+        nodeMatrix += &#039;&lt;tr&gt;&lt;td&gt;&#039; + matrixArray[ 2 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 6 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 10 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 14 ] + &#039;&lt;/td&gt;&lt;/tr&gt;&#039;;
+
+        nodeMatrix += &#039;&lt;tr&gt;&lt;td&gt;&#039; + matrixArray[ 3 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 7 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 11 ] + &#039;&lt;/td&gt;&#039;;
+        nodeMatrix += &#039;&lt;td&gt;&#039; + matrixArray[ 15 ] + &#039;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#039;;
+
+        return nodeMatrix;
+    },
+
+    getLabel: function ( obj ) {
+        var label = obj.className() + &#039; (&#039; + obj.getInstanceID() + &#039;)&#039;;
+        if ( obj.getName &amp;&amp; obj.getName() ) label += &#039;\n&#039; + obj.getName();
+        return label;
+    },
+
+    generateNode: function ( g, node ) {
+        var description = &#039;&#039;;
+        if ( node.getMatrix &amp;&amp; node.getMatrix() ) {
+            description += &#039;&lt;br /&gt;&lt;br /&gt;&#039; + this.createMatrixGrid( node, node.getMatrix() );
+        }
+
+        this._selectables.set( node.getInstanceID().toString(), node );
+        g.addNode( node.getInstanceID(), {
+            label: this.getLabel( node ),
+            description: description,
+            style: &#039;fill: &#039; + this.getColorFromClassName( node.className() ) + &#039;;stroke-width: 0px;&#039;
+        } );
+    },
+
+    generateStateSet: function ( g, node ) {
+        var stateSet = node.getStateSet();
+        var stateSetID = stateSet.getInstanceID();
+
+        var label = this.getLabel( stateSet );
+        label += &#039;\nNbTexture : &#039; + stateSet.getNumTextureAttributeLists();
+
+        if ( !g.hasNode( stateSetID ) ) {
+
+            this._selectables.set( stateSetID.toString(), stateSet );
+            g.addNode( stateSetID, {
+                label: label,
+                style: &#039;fill: &#039; + this.getColorFromClassName( stateSet.className() ) + &#039;;stroke-width: 0px;&#039;
+            } );
+        }
+
+        g.addEdge( null, node.getInstanceID(), stateSetID, {
+            style: &#039;stroke: &#039; + this.getColorFromClassName( stateSet.className() ) + &#039;;&#039;
+        } );
+    },
+
+    generateSourceGeometry: function ( g, node ) {
+        var sourceGeom = node.getSourceGeometry();
+        var sourceGeomID = sourceGeom.getInstanceID();
+
+        this._selectables.set( sourceGeomID.toString(), sourceGeom );
+        g.addNode( sourceGeomID, {
+            label: this.getLabel( sourceGeom ),
+            style: &#039;fill: &#039; + this.getColorFromClassName( sourceGeom.className() ) + &#039;;stroke-width: 0px;&#039;
+        } );
+
+        g.addEdge( null, node.getInstanceID(), sourceGeomID, {
+            style: &#039;stroke: &#039; + this.getColorFromClassName( sourceGeom.className() ) + &#039;;&#039;
+        } );
+    },
+
+    // Subfunction of createGraph, will iterate to create all the node and link in dagre
+    generateNodeAndLink: function ( g ) {
+
+        for ( var i = 0, ni = this._nodeList.length; i &lt; ni; i++ ) {
+            var node = this._nodeList[ i ];
+
+            // node
+            this.generateNode( g, node );
+
+            // adds statesets node
+            if ( node.getStateSet() ) {
+                this.generateStateSet( g, node );
+            }
+
+            // adds source geometry node
+            if ( node.getSourceGeometry &amp;&amp; node.getSourceGeometry() instanceof MorphGeometry ) {
+                this.generateSourceGeometry( g, node );
+            }
+        }
+
+        for ( var j = 0, nj = this._linkList.length; j &lt; nj; j++ ) {
+            g.addEdge( null, this._linkList[ j ].parentNode, this._linkList[ j ].childrenNode );
+        }
+    }
+} );
+
+module.exports = DisplayGraphNode;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

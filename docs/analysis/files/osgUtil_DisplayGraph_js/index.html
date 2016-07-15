@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/DisplayGraph.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">68.62</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">293</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">30.87</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.83</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+
+var DisplayGraphRenderer = require( &#039;osgUtil/DisplayGraphRenderer&#039; );
+var DisplayGraphNode = require( &#039;osgUtil/DisplayGraphNode&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+
+var $;
+
+var init$ = function () {
+    try {
+        $ = require( &#039;jquery&#039; );
+    } catch ( e ) {
+        Notify.warn( &#039;You will not be able to use osgUtil.DisplayGraph until you add jQuery in your page&#039; );
+    }
+};
+
+// Simple tooltips implementation
+var SimpleTooltips = function ( options ) {
+
+    this.options = options;
+    var css = document.createElement( &#039;style&#039; );
+    css.type = &#039;text/css&#039;;
+    css.innerHTML = [
+        &#039;.osgDebugSimpleTooltip {&#039;,
+        &#039;display: none;&#039;,
+        &#039;position: absolute;&#039;,
+        &#039;margin-left: 10px;&#039;,
+        &#039;border-radius: 4px;&#039;,
+        &#039;padding: 10px;&#039;,
+        &#039;background: rgba(0,0,0,.9);&#039;,
+        &#039;color: #ffffff;&#039;,
+        &#039;}&#039;,
+        &#039;.osgDebugSimpleTooltip:before {&#039;,
+        &#039;content: &#039;,
+        &#039;;&#039;,
+        &#039;position: absolute;&#039;,
+        &#039;left: -10px;&#039;,
+        &#039;top: 8px;&#039;,
+        &#039;border: 10px solid transparent;&#039;,
+        &#039;border-width: 10px 10px 10px 0;&#039;,
+        &#039;border-right-color: rgba(0,0,0,.9);&#039;,
+        &#039;}&#039;
+    ].join( &#039;\n&#039; );
+    document.getElementsByTagName( &#039;head&#039; )[ 0 ].appendChild( css );
+
+    this.el = document.createElement( &#039;div&#039; );
+    this.el.className = &#039;osgDebugSimpleTooltip&#039;;
+    document.body.appendChild( this.el );
+    var nodes = document.querySelectorAll( this.options.selector );
+    for ( var i = 0; i &lt; nodes.length; i++ ) {
+        nodes[ i ].addEventListener( &#039;mouseover&#039;, this.showTooltip.bind( this ), false );
+        nodes[ i ].addEventListener( &#039;mouseout&#039;, this.hideTooltip.bind( this ), false );
+    }
+};
+SimpleTooltips.prototype = {
+    showTooltip: function ( e ) {
+        if ( !$ ) return;
+
+        var target = e.currentTarget;
+        this.el.innerHTML = target.getAttribute( &#039;title&#039; );
+        this.el.style.display = &#039;block&#039;;
+        this.el.style.left = $( target ).position().left + $( target ).get( 0 ).getBoundingClientRect().width + &#039;px&#039;;
+        this.el.style.top = $( target ).position().top + &#039;px&#039;;
+    },
+    hideTooltip: function () {
+        this.el.style.display = &#039;none&#039;;
+    }
+};
+
+var DisplayGraph = function () {
+
+    init$();
+    if ( !$ ) return;
+
+    // indexed with instanceID, references nodes, stateSet, sourceGeometry...
+    // referenced with strings !
+    this._selectables = new window.Map();
+
+    this._graphNode = new DisplayGraphNode( this._selectables );
+    this._graphRender = new DisplayGraphRenderer( this._selectables );
+
+    this._displayNode = true;
+    this._displayRenderer = false;
+
+    // callback when selecting a node
+    this._cbSelect = undefined;
+
+    this._focusedElement = &#039;graph&#039;;
+    this._idToDomElement = new window.Map();
+
+    this._$svg = $( &#039;&lt;svg width=100% height=100%&gt;&lt;/svg&gt;&#039; );
+    $( &#039;body&#039; ).append( this._$svg );
+
+    this._css = &#039;.node {text-align: center;cursor: pointer;}.node rect {stroke: #FFF;}.edgePath path {stroke: #FFF;fill: none;}table {text-align: right;}svg {position: absolute;left: 0px;top: 0px;}.osgDebugButton {position: absolute;left: 15px;top: 15px;z-index: 5;border: 0;background: #65a9d7;background: -webkit-gradient(linear, left top, left bottom, from(#3e779d), to(#65a9d7));background: -webkit-linear-gradient(top, #3e779d, #65a9d7);background: -moz-linear-gradient(top, #3e779d, #65a9d7);background: -ms-linear-gradient(top, #3e779d, #65a9d7);background: -o-linear-gradient(top, #3e779d, #65a9d7);padding: 5px 10px;-webkit-border-radius: 7px;-moz-border-radius: 7px;border-radius: 7px;-webkit-box-shadow: rgba(0,0,0,1) 0 1px 0;-moz-box-shadow: rgba(0,0,0,1) 0 1px 0;box-shadow: rgba(0,0,0,1) 0 1px 0;text-shadow: rgba(0,0,0,.4) 0 1px 0;color: white;font-size: 15px;font-family: Helvetica, Arial, Sans-Serif;text-decoration: none;vertical-align: middle;}.osgDebugButton:hover {border-top-color: #28597a;background: #28597a;color: #ccc;}.osgDebugButton:active {border-top-color: #1b435e;background: #1b435e;}.osgDebugSimpleTooltip .osgDebugName {font-weight: bold;color: #60b1fc;margin: 0;}.osgDebugSimpleTooltip .osgDebugDescription {margin: 0;}&#039;;
+};
+
+DisplayGraph.instance = function () {
+    if ( !DisplayGraph._instance )
+        DisplayGraph._instance = new DisplayGraph();
+    return DisplayGraph._instance;
+};
+
+DisplayGraph.prototype = {
+    getColorFromClassName: DisplayGraphNode.prototype.getColorFromClassName,
+
+    setCallbackSelect: function ( cb ) {
+        this._cbSelect = cb;
+    },
+
+    reset: function () {
+        if ( !$ ) return;
+
+        this._selectables.clear();
+        this._$svg.empty();
+        this._focusedElement = &#039;scene&#039;;
+        $( &#039;.osgDebugButton&#039; ).hide();
+    },
+
+    setDisplayGraphRenderer: function ( bool ) {
+        this._displayRenderer = bool;
+    },
+
+    createRenderGraph: function ( renderStage ) {
+        // called by renderer
+        this._graphRender.createGraph( renderStage );
+        this.displayGraph();
+    },
+
+    createGraph: function ( root ) {
+        if ( !$ ) return;
+        this.reset();
+
+        this._displayNode = !!root;
+        if ( root ) {
+            this._graphNode.createGraph( root );
+        }
+
+        // check if asynchronous is necessary
+        if ( !this._displayRenderer ) {
+            this.displayGraph();
+        } else {
+            // circular dependency
+            require( &#039;osgViewer/Renderer&#039; ).debugGraph = true;
+        }
+    },
+
+    // Create and display a dagre d3 graph
+    displayGraph: function () {
+        if ( !$ ) return;
+        if ( window.d3 &amp;&amp; window.dagreD3 ) {
+            this._createGraphApply();
+            return;
+        }
+
+        var d3url = &#039;//cdnjs.cloudflare.com/ajax/libs/d3/3.4.13/d3.min.js&#039;;
+        var dagreurl = &#039;//cdn.jsdelivr.net/dagre-d3/0.2.9/dagre-d3.min.js&#039;;
+
+        var cb = this._createGraphApply.bind( this );
+        $.getScript( d3url ).done( function () {
+            $.getScript( dagreurl ).done( cb );
+        } );
+    },
+
+    _createGraphApply: function () {
+        var diGraph = new window.dagreD3.Digraph();
+        if ( this._displayNode ) this._graphNode.generateNodeAndLink( diGraph );
+        if ( this._displayRenderer ) this._graphRender.generateNodeAndLink( diGraph );
+
+
+        // Add the style of the graph
+        this.injectStyleElement();
+        $( &#039;.osgDebugButton&#039; ).show();
+
+        // Create the renderer
+        var renderer = this.renderer = new window.dagreD3.Renderer();
+
+        // Set up an SVG group so that we can translate the final graph.
+        var svg = window.d3.select( this._$svg.get( 0 ) );
+        var svgGroup = svg.append( &#039;g&#039; );
+
+        // Set initial zoom to 75%
+        var initialScale = 0.75;
+        var oldZoom = renderer.zoom();
+        renderer.zoom( function ( g, argSVG ) {
+            var zoom = oldZoom( g, argSVG );
+
+            zoom.scale( initialScale ).event( argSVG );
+            return zoom;
+        } );
+
+        // Simple function to style the tooltip for the given node.
+        var styleTooltip = function ( instanceID, description ) {
+            // instanceID is used by onNodeSelect to retrieve the node
+            return &#039;&lt;p class=&quot;osgDebugName&quot;&gt;&#039; + instanceID + &#039;&lt;/p&gt;&lt;pre class=&quot;osgDebugDescription&quot;&gt;&#039; + description + &#039;&lt;/pre&gt;&#039;;
+        };
+
+        var idToDom = this._idToDomElement;
+        // Override drawNodes to set up the hover.
+        var oldDrawNodes = renderer.drawNodes();
+        renderer.drawNodes( function ( g, argSVG ) {
+            var svgNodes = oldDrawNodes( g, argSVG );
+
+            // Set the title on each of the nodes and use tipsy to display the tooltip on hover
+            svgNodes.attr( &#039;title&#039;, function ( d ) {
+                idToDom.set( d, this );
+                return styleTooltip( d, g.node( d ).description || &#039;&#039; );
+            } );
+
+            return svgNodes;
+        } );
+
+        // Run the renderer. This is what draws the final graph.
+        renderer.run( diGraph, svgGroup );
+
+        this.tooltip = new SimpleTooltips( {
+            selector: &#039;.node&#039;
+        } );
+
+        // Do a console log of the node (or stateset) and save it in window.*
+        $( &#039;.node&#039; ).click( this.onNodeSelect.bind( this ) );
+        this.focusOnGraph();
+    },
+
+    selectNode: function ( node ) {
+        var id = node.getInstanceID();
+        var dom = this._idToDomElement.get( id );
+        if ( dom )
+            $( dom ).click();
+    },
+
+    onNodeSelect: function ( e ) {
+        var target = e.currentTarget;
+        var identifier = $( target.getAttribute( &#039;title&#039; ) )[ 0 ].innerHTML;
+        var selectables = this._selectables;
+
+        // color the node back
+        if ( this.lastNode ) {
+            this.lastNode.style.fill = this.lastColor;
+        }
+
+        // non selectables nodes
+        var elt = selectables.get( identifier );
+        if ( !elt )
+            return;
+
+        this.lastNode = target.childNodes[ 0 ];
+        this.lastColor = this.lastNode.style.fill;
+        target.childNodes[ 0 ].style.fill = &#039;#f00&#039;;
+
+        window.activeNode = elt;
+        Notify.info( &#039;window.activeNode is set with the node below !&#039; );
+        Notify.log( window.activeNode );
+        Notify.log( &#039;\n&#039; );
+
+        if ( this._cbSelect )
+            this._cbSelect( elt );
+    },
+
+    focusOnScene: function () {
+        $( &#039;.osgDebugButton&#039; ).text( &#039;Access to the graph&#039; );
+        this._$svg.css( &#039;zIndex&#039;, &#039;-2&#039; );
+        this._focusedElement = &#039;scene&#039;;
+    },
+
+    focusOnGraph: function () {
+        $( &#039;.osgDebugButton&#039; ).text( &#039;Access to the scene&#039; );
+        this._$svg.css( &#039;zIndex&#039;, &#039;2&#039; );
+        $( &#039;.osgDebugSimpleTooltip&#039; ).css( &#039;zIndex&#039;, &#039;3&#039; );
+        this._focusedElement = &#039;graph&#039;;
+    },
+
+    // Apply all the style
+    injectStyleElement: function () {
+        if ( this._cssInjected )
+            return;
+        this._cssInjected = true;
+
+        $( &#039;body&#039; ).append( &#039;&lt;button class=&quot;osgDebugButton&quot;&gt;Access to the scene&lt;/button&gt;&#039; );
+        $( &#039;.osgDebugButton&#039; ).click( function () {
+            if ( this._focusedElement === &#039;scene&#039; )
+                this.focusOnGraph();
+            else
+                this.focusOnScene();
+        }.bind( this ) );
+
+        var css = document.createElement( &#039;style&#039; );
+        css.type = &#039;text/css&#039;;
+        css.innerHTML = this._css;
+        document.getElementsByTagName( &#039;head&#039; )[ 0 ].appendChild( css );
+    }
+};
+
+module.exports = DisplayGraph;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

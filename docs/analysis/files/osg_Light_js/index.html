@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/Light.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">77.46</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">349</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">44.29</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.97</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Vec4 = require( &#039;osg/Vec4&#039; );
+var Map = require( &#039;osg/Map&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+
+
+// use the same kind of opengl lights
+// see http://www.glprogramming.com/red/chapter05.html
+
+
+var Light = function ( lightNum, disable ) {
+    StateAttribute.call( this );
+
+    var lightNumber = lightNum !== undefined ? lightNum : 0;
+
+    this._ambient = Vec4.createAndSet( 0.2, 0.2, 0.2, 1.0 );
+    this._diffuse = Vec4.createAndSet( 0.8, 0.8, 0.8, 1.0 );
+    this._specular = Vec4.createAndSet( 0.2, 0.2, 0.2, 1.0 );
+
+    // Default is directional as postion[3] is 0
+    this._position = Vec4.createAndSet( 0.0, 0.0, 1.0, 0.0 );
+    this._direction = Vec3.createAndSet( 0.0, 0.0, -1.0 );
+
+    // TODO : refactor lights management w=1.0 (isHemi), w=-1.0
+    // (isNotHemi) _ground contains the color but w says if it&#039;s
+    // an hemi or not
+    this._ground = Vec4.createAndSet( 0.2, 0.2, 0.2, -1.0 );
+
+    this._spotCutoff = 180.0;
+    this._spotBlend = 0.01;
+
+    // the array contains constant, linear, quadratic factor
+    this._attenuation = Vec4.createAndSet( 1.0, 0.0, 0.0, 0.0 );
+
+    this._lightUnit = lightNumber;
+
+    this._invMatrix = Matrix.create();
+
+    this._enable = !disable;
+
+};
+
+Light.DIRECTION = &#039;DIRECTION&#039;;
+Light.SPOT = &#039;SPOT&#039;;
+Light.POINT = &#039;POINT&#039;;
+Light.HEMI = &#039;HEMI&#039;;
+
+Light.uniforms = {};
+Light.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( StateAttribute.prototype, {
+
+    attributeType: &#039;Light&#039;,
+
+    cloneType: function () {
+        return new Light( this._lightUnit, true );
+    },
+
+    getTypeMember: function () {
+        return this.attributeType + this._lightUnit;
+    },
+
+    getUniformName: function ( name ) {
+        var prefix = this.getType() + this._lightUnit.toString();
+        return prefix + &#039;_uniform_&#039; + name;
+    },
+
+    getHash: function () {
+        return this.getTypeMember() + this.getLightType() + this.isEnabled().toString();
+    },
+
+    getOrCreateUniforms: function () {
+
+        var obj = Light;
+        var typeMember = this.getTypeMember();
+
+        if ( obj.uniforms[ typeMember ] ) return obj.uniforms[ typeMember ];
+
+        var uniformList = {
+            ambient: &#039;createFloat4&#039;,
+            diffuse: &#039;createFloat4&#039;,
+            specular: &#039;createFloat4&#039;,
+
+            attenuation: &#039;createFloat4&#039;,
+            position: &#039;createFloat4&#039;,
+            direction: &#039;createFloat3&#039;,
+
+            spotCutOff: &#039;createFloat1&#039;,
+            spotBlend: &#039;createFloat1&#039;,
+
+            ground: &#039;createFloat4&#039;,
+
+            matrix: &#039;createMatrix4&#039;,
+            invMatrix: &#039;createMatrix4&#039;
+        };
+
+        var uniforms = {};
+
+        window.Object.keys( uniformList ).forEach( function ( key ) {
+
+            var type = uniformList[ key ];
+            var func = Uniform[ type ];
+            uniforms[ key ] = func( this.getUniformName( key ) );
+
+        }.bind( this ) );
+
+        obj.uniforms[ typeMember ] = new Map( uniforms );
+
+        return obj.uniforms[ typeMember ];
+    },
+
+    // enable / disable is not implemented in uniform
+    // we should add it
+    isEnabled: function () {
+        return this._enable;
+    },
+
+    setEnabled: function ( bool ) {
+        this._enable = bool;
+    },
+
+    // Deprecated methods, should be removed in the future
+    isEnable: function () {
+        Notify.log( &#039;Light.isEnable() is deprecated, use isEnabled instead&#039; );
+        return this.isEnabled();
+    },
+
+    setEnable: function ( bool ) {
+        Notify.log( &#039;Light.setEnable() is deprecated, use setEnabled instead&#039; );
+        this.setEnabled( bool );
+    },
+
+    // colors
+    setAmbient: function ( a ) {
+        Vec4.copy( a, this._ambient );
+    },
+
+    getAmbient: function () {
+        return this._ambient;
+    },
+
+    setDiffuse: function ( a ) {
+        Vec4.copy( a, this._diffuse );
+    },
+
+    getDiffuse: function () {
+        return this._diffuse;
+    },
+
+    setSpecular: function ( a ) {
+        Vec4.copy( a, this._specular );
+    },
+
+    getSpecular: function () {
+        return this._specular;
+    },
+
+
+    // position, also used for directional light
+    // position[3] === 0 means directional
+    // see creating lightsources http://www.glprogramming.com/red/chapter05.html
+    setPosition: function ( a ) {
+        Vec4.copy( a, this._position );
+    },
+
+    getPosition: function () {
+        return this._position;
+    },
+
+    // unused for directional
+    setDirection: function ( a ) {
+        Vec3.copy( a, this._direction );
+    },
+
+    getDirection: function () {
+        return this._direction;
+    },
+
+
+    setSpotCutoff: function ( a ) {
+        this._spotCutoff = a;
+    },
+
+    getSpotCutoff: function () {
+        return this._spotCutoff;
+    },
+
+    setSpotBlend: function ( a ) {
+        this._spotBlend = a;
+    },
+
+    getSpotBlend: function () {
+        return this._spotBlend;
+    },
+
+    // set/get the color of the ground
+    setGround: function ( a ) {
+        Vec3.copy( a, this._ground );
+    },
+
+    getGround: function () {
+        return this._ground;
+    },
+
+    // attenuation coeff
+    setConstantAttenuation: function ( value ) {
+        this._attenuation[ 0 ] = value;
+    },
+
+    getConstantAttenuation: function () {
+        return this._attenuation[ 0 ];
+    },
+
+    setLinearAttenuation: function ( value ) {
+        this._attenuation[ 1 ] = value;
+    },
+
+    getLinearAttenuation: function () {
+        return this._attenuation[ 1 ];
+    },
+
+    setQuadraticAttenuation: function ( value ) {
+        this._attenuation[ 2 ] = value;
+    },
+
+    getQuadraticAttenuation: function () {
+        return this._attenuation[ 2 ];
+    },
+
+    setLightType: function ( type ) {
+        if ( type === Light.DIRECTION )
+            return this.setLightAsDirection();
+        else if ( type === Light.SPOT )
+            return this.setLightAsSpot();
+        else if ( type === Light.HEMI )
+            return this.setLightAsHemi();
+        return this.setLightAsPoint();
+    },
+
+    getLightType: function () {
+        if ( this.isDirectionLight() )
+            return Light.DIRECTION;
+        else if ( this.isSpotLight() )
+            return Light.SPOT;
+        else if ( this.isHemiLight() )
+            return Light.HEMI;
+        return Light.POINT;
+    },
+
+    setLightAsSpot: function () {
+        Vec4.set( 0.0, 0.0, 0.0, 1.0, this._position );
+        Vec3.set( 0.0, 0.0, -1.0, this._direction );
+        this._ground[ 3 ] = -1.0;
+        this._spotCutoff = 90;
+    },
+
+    setLightAsPoint: function () {
+        Vec4.set( 0.0, 0.0, 0.0, 1.0, this._position );
+        Vec3.set( 0.0, 0.0, -1.0, this._direction );
+        this._ground[ 3 ] = -1.0;
+    },
+
+    setLightAsDirection: function () {
+        Vec4.set( 0.0, 0.0, 1.0, 0.0, this._position );
+        this._spotCutoff = 180;
+        this._ground[ 3 ] = -1.0;
+    },
+
+    setLightAsHemi: function () {
+        Vec4.set( 0.0, 0.0, 1.0, 0.0, this._position );
+        this._spotCutoff = 180;
+        this._ground[ 3 ] = 1.0;
+    },
+
+    setLightNumber: function ( unit ) {
+        this._lightUnit = unit;
+    },
+
+    getLightNumber: function () {
+        return this._lightUnit;
+    },
+
+    // internal helper
+    isSpotLight: function () {
+        return this._spotCutoff &lt; 180.0;
+    },
+
+    isDirectionLight: function () {
+        return this._position[ 3 ] === 0.0 &amp;&amp; this._ground[ 3 ] &lt; 0.0;
+    },
+
+    isHemiLight: function () {
+        return this._ground[ 3 ] &gt;= 0.0;
+    },
+
+    // matrix is current model view, which can mean:
+    // world (node refAbsolute)
+    // world+camera (camera is refAbsolute)
+    // world+camera+camera+... (camera relative...)
+    applyPositionedUniform: function ( matrix ) {
+
+        var uniformMap = this.getOrCreateUniforms();
+
+        var matrixArray = uniformMap.matrix.getInternalArray();
+        var invMatrixArray = uniformMap.invMatrix.getInternalArray();
+
+        Matrix.copy( matrix, matrixArray );
+        Matrix.copy( matrix, invMatrixArray );
+
+        invMatrixArray[ 12 ] = 0.0;
+        invMatrixArray[ 13 ] = 0.0;
+        invMatrixArray[ 14 ] = 0.0;
+
+        Matrix.inverse( invMatrixArray, invMatrixArray );
+        Matrix.transpose( invMatrixArray, invMatrixArray );
+    },
+
+    apply: function () {
+
+        if ( !this._enable ) return;
+
+        var uniformMap = this.getOrCreateUniforms();
+
+        uniformMap.position.setFloat4( this._position );
+
+        if ( this.isSpotLight() ) {
+            var spotsize = Math.cos( this._spotCutoff * Math.PI / 180.0 );
+            uniformMap.spotCutOff.setFloat( spotsize );
+            uniformMap.spotBlend.setFloat( ( 1.0 - spotsize ) * this._spotBlend );
+            uniformMap.direction.setFloat3( this._direction );
+        }
+
+        if ( this.isHemiLight() )
+            uniformMap.ground.setFloat4( this._ground );
+
+        uniformMap.attenuation.setFloat4( this._attenuation );
+        uniformMap.diffuse.setFloat4( this._diffuse );
+        uniformMap.specular.setFloat4( this._specular );
+        uniformMap.ambient.setFloat4( this._ambient );
+    }
+
+} ), &#039;osg&#039;, &#039;Light&#039; );
+
+MACROUTILS.setTypeID( Light );
+
+module.exports = Light;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

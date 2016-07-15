@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgDB/Input.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">64.07</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">679</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">66.67</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">6.42</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var P = require( &#039;bluebird&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var osgNameSpace = require( &#039;osgNameSpace&#039; );
+var Options = require( &#039;osgDB/Options&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var Image = require( &#039;osg/Image&#039; );
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var DrawArrays = require( &#039;osg/DrawArrays&#039; );
+var DrawArrayLengths = require( &#039;osg/DrawArrayLengths&#039; );
+var DrawElements = require( &#039;osg/DrawElements&#039; );
+var PrimitiveSet = require( &#039;osg/PrimitiveSet&#039; );
+
+
+var Input = function ( json, identifier ) {
+    this._json = json;
+    var map = identifier;
+    if ( map === undefined ) {
+        map = {};
+    }
+    this._identifierMap = map;
+    this._objectRegistry = {};
+
+    this._cacheReadObject = {}; //wrappers
+
+    // this._progressXHRCallback = undefined;
+    // this._prefixURL = &#039;&#039;;
+    // this.setImageLoadingOptions( {
+    //     promise: true,
+    //     onload: undefined
+    // } );
+
+    this.setOptions( MACROUTILS.objectMix( {}, Options ) );
+
+    // {
+    //     prefixURL: &#039;&#039;,
+    //     progressXHRCallback: undefined,
+    //     readImageURL: undefined,
+    //     imageLoadingUsePromise: undefined,
+    //     imageOnload: undefined,
+    // };
+};
+
+
+// keep one instance of image fallback
+if ( !Input.imageFallback ) {
+    Input.imageFallback = ( function () {
+        var fallback = new window.Image();
+        fallback.src = &#039;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIW2P8DwQACgAD/il4QJ8AAAAASUVORK5CYII=&#039;;
+        return fallback;
+    } )();
+}
+
+Input.prototype = {
+
+    clone: function () {
+        var input = new Input();
+        input._objectRegistry = this._objectRegistry;
+        input._cacheReadObject = this._cacheReadObject;
+        return input;
+    },
+
+    setOptions: function ( options ) {
+        this._defaultOptions = options;
+    },
+    getOptions: function () {
+        return this._defaultOptions;
+    },
+    setProgressXHRCallback: function ( func ) {
+        this._defaultOptions.progressXHRCallback = func;
+    },
+    setReadNodeURLCallback: function ( func ) {
+        this._defaultOptions.readNodeURL = func;
+    },
+    // used to override the type from pathname
+    // typically if you want to create proxy object
+    registerObject: function ( fullyQualifiedObjectname, constructor ) {
+        this._objectRegistry[ fullyQualifiedObjectname ] = constructor;
+    },
+
+    getJSON: function () {
+        return this._json;
+    },
+
+    setJSON: function ( json ) {
+        this._json = json;
+        return this;
+    },
+
+    setPrefixURL: function ( prefix ) {
+        this._defaultOptions.prefixURL = prefix;
+    },
+
+    getPrefixURL: function () {
+        return this._defaultOptions.prefixURL;
+    },
+
+    setDatabasePath: function ( path ) {
+        this._defaultOptions.databasePath = path;
+    },
+
+    getDatabasePath: function () {
+        return this._defaultOptions.databasePath;
+    },
+
+    computeURL: function ( url ) {
+
+        if ( typeof this._defaultOptions.prefixURL === &#039;string&#039; &amp;&amp;
+            this._defaultOptions.prefixURL.length &gt; 0 ) {
+
+            return this._defaultOptions.prefixURL + url;
+        }
+
+        return url;
+    },
+
+
+    requestFile: function ( url, options ) {
+
+        var defer = P.defer();
+
+        var req = new XMLHttpRequest();
+        req.open( &#039;GET&#039;, url, true );
+
+        // handle responseType
+        if ( options &amp;&amp; options.responseType )
+            req.responseType = options.responseType;
+
+        if ( options &amp;&amp; options.progress ) {
+            req.addEventListener( &#039;progress&#039;, options.progress, false );
+        }
+
+        req.addEventListener( &#039;error&#039;, function () {
+            defer.reject();
+        }, false );
+
+        req.addEventListener( &#039;load&#039;, function ( /*oEvent */) {
+
+            if ( req.responseType === &#039;arraybuffer&#039; )
+                defer.resolve( req.response );
+            else
+                defer.resolve( req.responseText );
+
+        } );
+
+        req.send( null );
+        return defer.promise;
+    },
+
+    getObjectWrapper: function ( path ) {
+        if ( this._objectRegistry[ path ] ) {
+            return new( this._objectRegistry[ path ] )();
+        }
+
+        var scope = osgNameSpace;
+        var splittedPath = path.split( &#039;.&#039; );
+        for ( var i = 0, l = splittedPath.length; i &lt; l; i++ ) {
+            var obj = scope[ splittedPath[ i ] ];
+            if ( obj === undefined ) {
+                return undefined;
+            }
+            scope = obj;
+        }
+        this._objectRegistry[ path ] = scope;
+        // create the new obj
+        return new( scope )();
+    },
+
+    fetchImage: function ( image, url, options, defer ) {
+        var checkInlineImage = &#039;data:image/&#039;;
+        // crossOrigin does not work for inline data image
+        var isInlineImage = ( url.substring( 0, checkInlineImage.length ) === checkInlineImage );
+        var img = new window.Image();
+        img.onerror = function () {
+            Notify.warn( &#039;warning use white texture as fallback instead of &#039; + url );
+            image.setImage( Input.imageFallback );
+            if ( defer ) {
+                defer.resolve( image );
+            }
+        };
+
+        if ( !isInlineImage &amp;&amp; options.imageCrossOrigin ) {
+            img.crossOrigin = options.imageCrossOrigin;
+        }
+
+        img.onload = function () {
+
+            if ( defer ) {
+                if ( options.imageOnload ) options.imageOnload.call( image );
+                defer.resolve( image );
+            } else if ( options.imageOnload )
+                options.imageOnload.call( image );
+
+        };
+
+        image.setURL( url );
+        image.setImage( img );
+
+        img.src = url;
+        return image;
+    },
+
+    readImageURL: function ( url, options ) {
+
+        if ( options === undefined ) {
+            options = this._defaultOptions;
+        }
+
+        // hook reader
+        if ( options.readImageURL ) {
+            // be carefull if you plan to call hook the call and after
+            // call the original readImageURL, you will need to remove
+            // from options the readImageURL if you dont want an infinte
+            // recursion call
+            return options.readImageURL.call( this, url, options );
+        }
+
+        // if image is on inline image skip url computation
+        if ( url.substr( 0, 10 ) !== &#039;data:image&#039; ) {
+            url = this.computeURL( url );
+        }
+
+
+        var image = new Image();
+        if ( options.imageLoadingUsePromise !== true ) {
+            return this.fetchImage( image, url, options );
+        }
+
+        var defer = P.defer();
+        this.fetchImage( image, url, options, defer );
+
+        return defer.promise;
+    },
+
+
+    readNodeURL: function ( url, opt ) {
+
+        var options = opt;
+        if ( options === undefined ) {
+            options = this._defaultOptions;
+        }
+
+        // hook reader
+        if ( options.readNodeURL ) {
+            // be carefull if you plan to call hook the call and after
+            // call the original readNodeURL, you will need to remove
+            // from options the readNodeURL if you dont want an infinte
+            // recursion call
+            return options.readNodeURL.call( this, url, options );
+        }
+
+        url = this.computeURL( url );
+
+        var defer = P.defer();
+
+        // copy because we are going to modify it to have relative prefix to load assets
+        options = MACROUTILS.objectMix( {}, options );
+
+        // automatic prefix if non specfied
+        if ( !!!options.prefixURL ) {
+            var prefix = this.getPrefixURL();
+            var index = url.lastIndexOf( &#039;/&#039; );
+            if ( index !== -1 ) {
+                prefix = url.substring( 0, index + 1 );
+            }
+            options.prefixURL = prefix;
+        }
+
+        var self = this;
+
+        var ReaderParser = require( &#039;osgDB/ReaderParser&#039; );
+
+        var readSceneGraph = function ( data ) {
+
+            ReaderParser.parseSceneGraph( data, options ).then( function ( child ) {
+                defer.resolve( child );
+                Notify.log( &#039;loaded &#039; + url );
+            } ).catch( defer.reject.bind( defer ) );
+        };
+
+        var ungzipFile = function ( file ) {
+
+            function pad( n ) {
+                return n.length &lt; 2 ? &#039;0&#039; + n : n;
+            }
+
+            function uintToString( uintArray ) {
+                var str = &#039;&#039;;
+                for ( var i = 0, len = uintArray.length; i &lt; len; ++i ) {
+                    str += ( &#039;%&#039; + pad( uintArray[ i ].toString( 16 ) ) );
+                }
+                str = decodeURIComponent( str );
+                return str;
+            }
+
+
+            var unpacked = self._unzipTypedArray( file );
+
+            var typedArray = new Uint8Array( unpacked );
+            var str = uintToString( typedArray );
+            return str;
+        };
+
+
+        // try to get the file as responseText to parse JSON
+        var fileTextPromise = self.requestFile( url );
+        fileTextPromise.then( function ( str ) {
+
+            var data;
+            try {
+
+                data = JSON.parse( str );
+
+            } catch ( error ) { // can&#039;t parse try with ungzip code path
+
+                Notify.error( &#039;cant parse url &#039; + url + &#039; try to gunzip&#039; );
+
+            }
+
+            // we have the json, read it
+            if ( data )
+                return readSceneGraph( data );
+
+
+            // no data try with gunzip
+            var fileGzipPromise = self.requestFile( url, {
+                responseType: &#039;arraybuffer&#039;
+            } );
+            fileGzipPromise.then( function ( file ) {
+
+                var str = ungzipFile( file );
+                data = JSON.parse( str );
+                readSceneGraph( data );
+
+            } ).catch( function ( status ) {
+
+                Notify.error( &#039;cant read file &#039; + url + &#039; status &#039; + status );
+                defer.reject();
+
+            } ).done();
+
+            return true;
+
+        } ).catch( function ( status ) {
+
+            Notify.error( &#039;cant get file &#039; + url + &#039; status &#039; + status );
+            defer.reject();
+
+        } ).done();
+
+        return defer.promise;
+    },
+
+    _unzipTypedArray: function ( binary ) {
+
+        var typedArray = new Uint8Array( binary );
+
+        // check magic number 1f8b
+        if ( typedArray[ 0 ] === 0x1f &amp;&amp; typedArray[ 1 ] === 0x8b ) {
+            var zlib = require( &#039;zlib&#039; );
+
+            if ( !zlib ) {
+                Notify.error( &#039;osg failed to use a gunzip.min.js to uncompress a gz file.\n You can add this vendors to enable this feature or adds the good header in your gzip file served by your server&#039; );
+            }
+
+            var zdec = new zlib.Gunzip( typedArray );
+            var result = zdec.decompress();
+            return result.buffer;
+        }
+
+        return binary;
+    },
+
+    readBinaryArrayURL: function ( url, options ) {
+
+        if ( options === undefined ) {
+            options = this._defaultOptions;
+        }
+
+        if ( options.readBinaryArrayURL ) {
+            return options.readBinaryArrayURL.call( this, url, options );
+        }
+
+        url = this.computeURL( url );
+
+
+        if ( this._identifierMap[ url ] !== undefined ) {
+            return this._identifierMap[ url ];
+        }
+        var defer = P.defer();
+
+        var filePromise = this.requestFile( url, {
+            responseType: &#039;arraybuffer&#039;,
+            progress: this._defaultOptions.progressXHRCallback
+        } );
+
+        this._identifierMap[ url ] = defer.promise;
+        filePromise.then( function ( file ) {
+            defer.resolve( this._unzipTypedArray( file ) );
+        }.bind( this ) );
+
+        return defer.promise;
+    },
+
+    initializeBufferArray: function ( vb, type, buf, options ) {
+        if ( options === undefined )
+            options = this.getOptions();
+        if ( options.initializeBufferArray )
+            return options.initializeBufferArray.call( this, vb, type, buf );
+
+        var url = vb.File;
+        var defer = P.defer();
+        this.readBinaryArrayURL( url ).then( function ( array ) {
+
+            var typedArray;
+            // manage endianness
+            var bigEndian;
+            ( function () {
+                var a = new Uint8Array( [ 0x12, 0x34 ] );
+                var b = new Uint16Array( a.buffer );
+                bigEndian = ( ( b[ 0 ] ).toString( 16 ) === &#039;1234&#039; );
+            } )();
+
+            var offset = 0;
+            if ( vb.Offset !== undefined ) {
+                offset = vb.Offset;
+            }
+
+            var bytesPerElement = MACROUTILS[ type ].BYTES_PER_ELEMENT;
+            var nbItems = vb.Size;
+            var nbCoords = buf.getItemSize();
+            var totalSizeInBytes = nbItems * bytesPerElement * nbCoords;
+
+            if ( bigEndian ) {
+                Notify.log( &#039;big endian detected&#039; );
+                var TypedArray = MACROUTILS[ type ];
+                var tmpArray = new TypedArray( nbItems * nbCoords );
+                var data = new DataView( array, offset, totalSizeInBytes );
+                var i = 0,
+                    l = tmpArray.length;
+                if ( type === &#039;Uint16Array&#039; ) {
+                    for ( ; i &lt; l; i++ ) {
+                        tmpArray[ i ] = data.getUint16( i * bytesPerElement, true );
+                    }
+                } else if ( type === &#039;Float32Array&#039; ) {
+                    for ( ; i &lt; l; i++ ) {
+                        tmpArray[ i ] = data.getFloat32( i * bytesPerElement, true );
+                    }
+                }
+                typedArray = tmpArray;
+                data = null;
+            } else {
+                typedArray = new MACROUTILS[ type ]( array, offset, nbCoords * nbItems );
+            }
+
+            buf.setElements( typedArray );
+            defer.resolve( buf );
+        } ).catch( function () {
+            Notify.warn( &#039;Can\&#039;t read binary array URL&#039; );
+        } );
+        return defer.promise;
+    },
+
+    readBufferArray: function ( options ) {
+        var jsonObj = this.getJSON();
+
+        var uniqueID = jsonObj.UniqueID;
+        var osgjsObject;
+        if ( uniqueID !== undefined ) {
+            osgjsObject = this._identifierMap[ uniqueID ];
+            if ( osgjsObject !== undefined ) {
+                return osgjsObject;
+            }
+        }
+
+        if ( options === undefined )
+            options = this.getOptions();
+        if ( options.readBufferArray )
+            return options.readBufferArray.call( this );
+
+        if ( ( !jsonObj.Elements &amp;&amp; !jsonObj.Array ) || !jsonObj.ItemSize || !jsonObj.Type )
+            return P.reject();
+
+        var promise;
+
+        // inline array
+        if ( jsonObj.Elements ) {
+            promise = P.resolve( new BufferArray( BufferArray[ jsonObj.Type ], jsonObj.Elements, jsonObj.ItemSize ) );
+
+        } else if ( jsonObj.Array ) {
+
+            var buf = new BufferArray( BufferArray[ jsonObj.Type ] );
+            buf.setItemSize( jsonObj.ItemSize );
+
+            var vb, type;
+            if ( jsonObj.Array.Float32Array ) {
+                vb = jsonObj.Array.Float32Array;
+                type = &#039;Float32Array&#039;;
+            } else if ( jsonObj.Array.Uint16Array ) {
+                vb = jsonObj.Array.Uint16Array;
+                type = &#039;Uint16Array&#039;;
+            } else if ( jsonObj.Array.Uint8Array ) {
+                vb = jsonObj.Array.Uint8Array;
+                type = &#039;Uint8Array&#039;;
+            }
+
+            if ( vb === undefined ) {
+                Notify.warn( &#039;Typed Array &#039; + window.Object.keys( jsonObj.Array )[ 0 ] );
+                return P.reject();
+            }
+
+            if ( vb.File ) {
+                promise = this.initializeBufferArray( vb, type, buf );
+            } else if ( vb.Elements ) {
+                buf.setElements( new MACROUTILS[ type ]( vb.Elements ) );
+                promise = P.resolve( buf );
+            }
+        }
+
+        if ( uniqueID !== undefined ) {
+            this._identifierMap[ uniqueID ] = promise;
+        }
+        return promise;
+    },
+
+    readUserDataContainer: function () {
+        var jsonObj = this.getJSON();
+        var osgjsObject;
+        var uniqueID = jsonObj.UniqueID;
+        if ( uniqueID !== undefined ) {
+            osgjsObject = this._identifierMap[ uniqueID ];
+            if ( osgjsObject !== undefined ) {
+                return osgjsObject.Values;
+            }
+        }
+
+        this._identifierMap[ uniqueID ] = jsonObj;
+        return jsonObj.Values;
+    },
+
+    readPrimitiveSet: function () {
+        var jsonObj = this.getJSON();
+        var uniqueID;
+        var osgjsObject;
+
+        var defer = P.defer();
+        var obj, mode, first, count;
+        var drawElementPrimitive = jsonObj.DrawElementUShort || jsonObj.DrawElementUByte || jsonObj.DrawElementUInt || jsonObj.DrawElementsUShort || jsonObj.DrawElementsUByte || jsonObj.DrawElementsUInt || undefined;
+        if ( drawElementPrimitive ) {
+
+            uniqueID = drawElementPrimitive.UniqueID;
+            if ( uniqueID !== undefined ) {
+                osgjsObject = this._identifierMap[ uniqueID ];
+                if ( osgjsObject !== undefined ) {
+                    return osgjsObject;
+                }
+            }
+
+            var jsonArray = drawElementPrimitive.Indices;
+            var prevJson = jsonObj;
+
+            mode = drawElementPrimitive.Mode;
+            if ( !mode ) {
+                mode = PrimitiveSet.TRIANGLES;
+            } else {
+                mode = PrimitiveSet[ mode ];
+            }
+            obj = new DrawElements( mode );
+
+            this.setJSON( jsonArray );
+            this.readBufferArray().then( function ( array ) {
+                obj.setIndices( array );
+                defer.resolve( obj );
+            } ).catch( function () {
+                Notify.warn( &#039;Error buffer array&#039; );
+            } );
+            this.setJSON( prevJson );
+        }
+
+        var drawArrayPrimitive = jsonObj.DrawArray || jsonObj.DrawArrays;
+        if ( drawArrayPrimitive ) {
+
+            uniqueID = drawArrayPrimitive.UniqueID;
+            if ( uniqueID !== undefined ) {
+                osgjsObject = this._identifierMap[ uniqueID ];
+                if ( osgjsObject !== undefined ) {
+                    return osgjsObject;
+                }
+            }
+
+            mode = drawArrayPrimitive.Mode || drawArrayPrimitive.mode;
+            first = drawArrayPrimitive.First !== undefined ? drawArrayPrimitive.First : drawArrayPrimitive.first;
+            count = drawArrayPrimitive.Count !== undefined ? drawArrayPrimitive.Count : drawArrayPrimitive.count;
+            var drawArray = new DrawArrays( PrimitiveSet[ mode ], first, count );
+            defer.resolve( drawArray );
+        }
+
+        var drawArrayLengthsPrimitive = jsonObj.DrawArrayLengths || undefined;
+        if ( drawArrayLengthsPrimitive ) {
+
+            uniqueID = drawArrayLengthsPrimitive.UniqueID;
+            if ( uniqueID !== undefined ) {
+                osgjsObject = this._identifierMap[ uniqueID ];
+                if ( osgjsObject !== undefined ) {
+                    return osgjsObject;
+                }
+            }
+
+            mode = drawArrayLengthsPrimitive.Mode;
+            first = drawArrayLengthsPrimitive.First;
+            var array = drawArrayLengthsPrimitive.ArrayLengths;
+            var drawArrayLengths = new DrawArrayLengths( PrimitiveSet[ mode ], first, array );
+            defer.resolve( drawArrayLengths );
+        }
+
+        if ( uniqueID !== undefined ) {
+            this._identifierMap[ uniqueID ] = defer.promise;
+        }
+
+        return defer.promise;
+    },
+
+
+    readObject: function () {
+
+        var jsonObj = this.getJSON();
+        var prop = window.Object.keys( jsonObj )[ 0 ];
+        if ( !prop ) {
+            Notify.warn( &#039;can\&#039;t find property for object &#039; + jsonObj );
+            return P.reject();
+        }
+
+        var uniqueID = jsonObj[ prop ].UniqueID;
+        var osgjsObject;
+        if ( uniqueID !== undefined ) {
+            osgjsObject = this._identifierMap[ uniqueID ];
+            if ( osgjsObject !== undefined ) {
+                return osgjsObject;
+            }
+        }
+
+        var obj = this.getObjectWrapper( prop );
+
+        if ( !obj ) {
+            Notify.warn( &#039;can\&#039;t instanciate object &#039; + prop );
+            return P.reject();
+        }
+
+        var ReaderParser = require( &#039;osgDB/ReaderParser&#039; );
+        var scope = ReaderParser.ObjectWrapper.serializers;
+
+        if ( this._cacheReadObject[ prop ] ) {
+            scope = this._cacheReadObject[ prop ];
+        } else {
+
+            var splittedPath = prop.split( &#039;.&#039; );
+            for ( var i = 0, l = splittedPath.length; i &lt; l; i++ ) {
+                var reader = scope[ splittedPath[ i ] ];
+                if ( reader === undefined ) {
+                    Notify.warn( &#039;can\&#039;t find function to read object &#039; + prop + &#039; - undefined&#039; );
+                    return P.reject();
+                }
+                scope = reader;
+            }
+            this._cacheReadObject[ prop ] = scope;
+        }
+
+        var promise = scope( this.setJSON( jsonObj[ prop ] ), obj );
+
+        if ( uniqueID !== undefined ) {
+            this._identifierMap[ uniqueID ] = promise;
+            obj._uniqueID = uniqueID;
+        }
+
+        return promise;
+    }
+};
+
+module.exports = Input;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

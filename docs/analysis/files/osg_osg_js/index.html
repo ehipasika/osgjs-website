@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/osg.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">30.25</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">167</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">7.41</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.22</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var AutoTransform = require( &#039;osg/AutoTransform&#039; );
+var BillboardAttribute = require( &#039;osg/BillboardAttribute&#039; );
+var BlendColor = require( &#039;osg/BlendColor&#039; );
+var BlendFunc = require( &#039;osg/BlendFunc&#039; );
+var BoundingBox = require( &#039;osg/BoundingBox&#039; );
+var BoundingSphere = require( &#039;osg/BoundingSphere&#039; );
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var Camera = require( &#039;osg/Camera&#039; );
+var ColorMask = require( &#039;osg/ColorMask&#039; );
+var ComputeBoundsVisitor = require( &#039;osg/ComputeBoundsVisitor&#039; );
+var ComputeMatrixFromNodePath = require( &#039;osg/ComputeMatrixFromNodePath&#039; );
+var CullFace = require( &#039;osg/CullFace&#039; );
+var CullingSet = require( &#039;osg/CullingSet&#039; );
+var CullSettings = require( &#039;osg/CullSettings&#039; );
+var CullStack = require( &#039;osg/CullStack&#039; );
+var CullVisitor = require( &#039;osg/CullVisitor&#039; );
+var Depth = require( &#039;osg/Depth&#039; );
+var DrawArrayLengths = require( &#039;osg/DrawArrayLengths&#039; );
+var DrawArrays = require( &#039;osg/DrawArrays&#039; );
+var DrawElements = require( &#039;osg/DrawElements&#039; );
+var EllipsoidModel = require( &#039;osg/EllipsoidModel&#039; );
+var FrameBufferObject = require( &#039;osg/FrameBufferObject&#039; );
+var FrameStamp = require( &#039;osg/FrameStamp&#039; );
+var Geometry = require( &#039;osg/Geometry&#039; );
+var GLObject = require( &#039;osg/GLObject&#039; );
+var Image = require( &#039;osg/Image&#039; );
+var ImageStream = require( &#039;osg/ImageStream&#039; );
+var KdTree = require( &#039;osg/KdTree&#039; );
+var KdTreeBuilder = require( &#039;osg/KdTreeBuilder&#039; );
+var Light = require( &#039;osg/Light&#039; );
+var LightSource = require( &#039;osg/LightSource&#039; );
+var LineWidth = require( &#039;osg/LineWidth&#039; );
+var Lod = require( &#039;osg/Lod&#039; );
+var Map = require( &#039;osg/Map&#039; );
+var Material = require( &#039;osg/Material&#039; );
+var osgjsMath = require( &#039;osg/Math&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var MatrixMemoryPool = require( &#039;osg/MatrixMemoryPool&#039; );
+var MatrixTransform = require( &#039;osg/MatrixTransform&#039; );
+var Node = require( &#039;osg/Node&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var Object = require( &#039;osg/Object&#039; );
+var PagedLOD = require( &#039;osg/PagedLOD&#039; );
+var Polytope = require( &#039;osg/Polytope&#039; );
+var Plane = require( &#039;osg/Plane&#039; );
+var PrimitiveFunctor = require( &#039;osg/PrimitiveFunctor&#039; );
+var PrimitiveSet = require( &#039;osg/PrimitiveSet&#039; );
+var Program = require( &#039;osg/Program&#039; );
+var Projection = require( &#039;osg/Projection&#039; );
+var Quat = require( &#039;osg/Quat&#039; );
+var RenderBin = require( &#039;osg/RenderBin&#039; );
+var RenderLeaf = require( &#039;osg/RenderLeaf&#039; );
+var RenderStage = require( &#039;osg/RenderStage&#039; );
+var Shader = require( &#039;osg/Shader&#039; );
+var Shape = require( &#039;osg/Shape&#039; );
+var Stack = require( &#039;osg/Stack&#039; );
+var State = require( &#039;osg/State&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var StateGraph = require( &#039;osg/StateGraph&#039; );
+var StateSet = require( &#039;osg/StateSet&#039; );
+var Texture = require( &#039;osg/Texture&#039; );
+var TextureCubeMap = require( &#039;osg/TextureCubeMap&#039; );
+var Transform = require( &#039;osg/Transform&#039; );
+var TriangleIndexFunctor = require( &#039;osg/TriangleIndexFunctor&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var UpdateVisitor = require( &#039;osg/UpdateVisitor&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Vec2 = require( &#039;osg/Vec2&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Vec4 = require( &#039;osg/Vec4&#039; );
+var Viewport = require( &#039;osg/Viewport&#039; );
+var osgPool = require( &#039;osgUtil/osgPool&#039; );
+var TransformEnums = require( &#039;osg/TransformEnums&#039; );
+var Timer = require( &#039;osg/Timer&#039; );
+var TimerGPU = require( &#039;osg/TimerGPU&#039; );
+var WebGLCaps = require( &#039;osg/WebGLCaps&#039; );
+
+
+var osg = {};
+osg.AutoTransform = AutoTransform;
+osg.BillboardAttribute = BillboardAttribute;
+osg.BlendColor = BlendColor;
+osg.BlendFunc = BlendFunc;
+osg.BoundingBox = BoundingBox;
+osg.BoundingSphere = BoundingSphere;
+osg.BufferArray = BufferArray;
+osg.ColorMask = ColorMask;
+osg.Camera = Camera;
+osg.ColorMask = ColorMask;
+osg.ComputeBoundsVisitor = ComputeBoundsVisitor;
+MACROUTILS.objectMix( osg, ComputeMatrixFromNodePath );
+osg.CullFace = CullFace;
+osg.CullingSet = CullingSet;
+osg.CullSettings = CullSettings;
+osg.CullStack = CullStack;
+osg.CullVisitor = CullVisitor;
+osg.Depth = Depth;
+osg.DrawArrayLengths = DrawArrayLengths;
+osg.DrawArrays = DrawArrays;
+osg.DrawElements = DrawElements;
+osg.EllipsoidModel = EllipsoidModel;
+osg.WGS_84_RADIUS_EQUATOR = EllipsoidModel.WGS_84_RADIUS_EQUATOR;
+osg.WGS_84_RADIUS_POLAR = EllipsoidModel.WGS_84_RADIUS_POLAR;
+osg.FrameBufferObject = FrameBufferObject;
+osg.FrameStamp = FrameStamp;
+osg.Geometry = Geometry;
+osg.GLObject = GLObject;
+osg.Image = Image;
+osg.ImageStream = ImageStream;
+osg.KdTree = KdTree;
+osg.KdTreeBuilder = KdTreeBuilder;
+osg.Light = Light;
+osg.LightSource = LightSource;
+osg.LineWidth = LineWidth;
+osg.Lod = Lod;
+osg.Map = Map;
+osg.Material = Material;
+MACROUTILS.objectMix( osg, osgjsMath );
+osg.Matrix = Matrix;
+osg.MatrixTransform = MatrixTransform;
+osg.MatrixMemoryPool = MatrixMemoryPool;
+osg.Node = Node;
+osg.NodeVisitor = NodeVisitor;
+MACROUTILS.objectMix( osg, Notify );
+osg.Object = Object;
+osg.PagedLOD = PagedLOD;
+osg.Plane = Plane;
+osg.Polytope = Polytope;
+osg.PrimitiveSet = PrimitiveSet;
+osg.PrimitiveFunctor = PrimitiveFunctor;
+osg.Program = Program;
+osg.Projection = Projection;
+osg.Quat = Quat;
+osg.RenderBin = RenderBin;
+osg.RenderLeaf = RenderLeaf;
+osg.RenderStage = RenderStage;
+osg.Shader = Shader;
+MACROUTILS.objectMix( osg, Shape );
+osg.Stack = Stack;
+osg.State = State;
+osg.StateAttribute = StateAttribute;
+osg.StateGraph = StateGraph;
+osg.StateSet = StateSet;
+osg.Texture = Texture;
+osg.TextureCubeMap = TextureCubeMap;
+osg.Transform = Transform;
+osg.TriangleIndexFunctor = TriangleIndexFunctor;
+osg.Uniform = Uniform;
+osg.UpdateVisitor = UpdateVisitor;
+MACROUTILS.objectMix( osg, MACROUTILS );
+osg.Vec2 = Vec2;
+osg.Vec3 = Vec3;
+osg.Vec4 = Vec4;
+osg.Viewport = Viewport;
+
+osg.memoryPools = osgPool.memoryPools;
+
+osg.Transform.RELATIVE_RF = TransformEnums.RELATIVE_RF;
+osg.Transform.ABSOLUTE_RF = TransformEnums.ABSOLUTE_RF;
+osg.Timer = Timer;
+osg.TimerGPU = TimerGPU;
+osg.WebGLCaps = WebGLCaps;
+
+
+module.exports = osg;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

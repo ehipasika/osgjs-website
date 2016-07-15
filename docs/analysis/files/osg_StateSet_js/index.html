@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/StateSet.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">78.95</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">263</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">41.49</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.20</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Map = require( &#039;osg/Map&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var Object = require( &#039;osg/Object&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+
+
+/** Stores a set of modes and attributes which represent a set of OpenGL state.
+ *  Notice that a \c StateSet contains just a subset of the whole OpenGL state.
+ * &lt;p&gt;In OSG, each \c Drawable and each \c Node has a reference to a
+ * \c StateSet. These &lt;tt&gt;StateSet&lt;/tt&gt;s can be shared between
+ * different &lt;tt&gt;Drawable&lt;/tt&gt;s and &lt;tt&gt;Node&lt;/tt&gt;s (that is, several
+ * &lt;tt&gt;Drawable&lt;/tt&gt;s and &lt;tt&gt;Node&lt;/tt&gt;s can reference the same \c StateSet).
+ * Indeed, this practice is recommended whenever possible,
+ * as this minimizes expensive state changes in the graphics pipeline.
+ */
+var StateSet = function () {
+    Object.call( this );
+
+    this.attributeMap = new Map();
+
+    this.textureAttributeMapList = [];
+
+    this._binName = undefined;
+    this._binNumber = 0;
+
+    // put the shader generator name in an AttributePair
+    // so that we can use the mask value
+    this._shaderGeneratorPair = null;
+
+    this._updateCallbackList = [];
+
+    this.uniforms = new Map();
+
+};
+
+StateSet.AttributePair = function ( attr, value ) {
+    this._object = attr;
+    this._value = value;
+};
+
+StateSet.AttributePair.prototype = {
+    getShaderGeneratorName: function () {
+        return this._object;
+    },
+    getAttribute: function () {
+        return this._object;
+    },
+    getUniform: function () {
+        return this._object;
+    },
+    getValue: function () {
+        return this._value;
+    }
+};
+
+
+StateSet.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Object.prototype, {
+    getAttributePair: function ( attribute, value ) {
+        return new StateSet.AttributePair( attribute, value );
+    },
+    addUniform: function ( uniform, mode ) {
+        if ( mode === undefined ) {
+            mode = StateAttribute.ON;
+        }
+
+        var name = uniform.getName();
+        this.uniforms[ name ] = this.getAttributePair( uniform, mode );
+        this.uniforms.dirty();
+    },
+    removeUniform: function ( uniform ) {
+        this.uniforms.remove( uniform.getName() );
+    },
+    removeUniformByName: function ( uniformName ) {
+        this.uniforms.remove( uniformName );
+    },
+    getUniform: function ( uniform ) {
+        var uniformMap = this.uniforms;
+        if ( uniformMap[ uniform ] ) return uniformMap[ uniform ].getAttribute();
+
+        return undefined;
+    },
+    getUniformList: function () {
+        return this.uniforms;
+    },
+
+    setTextureAttributeAndModes: function ( unit, attribute, mode ) {
+        if ( mode === undefined ) {
+            mode = StateAttribute.ON;
+        }
+        this._setTextureAttribute( unit, this.getAttributePair( attribute, mode ) );
+    },
+    setTextureAttributeAndMode: function ( unit, attribute, mode ) {
+        Notify.log( &#039;StateSet.setTextureAttributeAndMode is deprecated, insteady use setTextureAttributeAndModes&#039; );
+        this.setTextureAttributeAndModes( unit, attribute, mode );
+    },
+
+    getNumTextureAttributeLists: function () {
+        return this.textureAttributeMapList.length;
+    },
+    getTextureAttribute: function ( unit, attribute ) {
+        if ( this.textureAttributeMapList[ unit ] === undefined ) return undefined;
+
+        var textureMap = this.textureAttributeMapList[ unit ];
+        if ( textureMap[ attribute ] === undefined ) return undefined;
+
+        return textureMap[ attribute ].getAttribute();
+    },
+
+    removeTextureAttribute: function ( unit, attributeName ) {
+        if ( this.textureAttributeMapList[ unit ] === undefined ) return;
+
+        var textureAttributeMap = this.textureAttributeMapList[ unit ];
+        if ( textureAttributeMap[ attributeName ] === undefined ) return;
+
+
+        textureAttributeMap.remove( attributeName );
+        this.textureAttributeMapList[ unit ].dirty();
+    },
+
+    getAttribute: function ( attributeType ) {
+        if ( this.attributeMap[ attributeType ] === undefined ) {
+            return undefined;
+        }
+        return this.attributeMap[ attributeType ].getAttribute();
+    },
+
+    setAttributeAndModes: function ( attribute, mode ) {
+        if ( mode === undefined ) {
+            mode = StateAttribute.ON;
+        }
+        this._setAttribute( this.getAttributePair( attribute, mode ) );
+    },
+
+    setAttributeAndMode: function ( attribute, mode ) {
+        Notify.log( &#039;StateSet.setAttributeAndMode is deprecated, insteady use setAttributeAndModes&#039; );
+        this.setAttributeAndModes( attribute, mode );
+    },
+
+    setAttribute: function ( attribute, mode ) {
+        if ( mode === undefined ) {
+            mode = StateAttribute.ON;
+        }
+        this._setAttribute( this.getAttributePair( attribute, mode ) );
+    },
+
+    // TODO: check if it&#039;s an attribute type or a attribute to remove it
+    removeAttribute: function ( attributeName ) {
+
+        if ( this.attributeMap[ attributeName ] !== undefined ) {
+            delete this.attributeMap[ attributeName ];
+            this.attributeMap.dirty();
+        }
+    },
+
+    setRenderingHint: function ( hint ) {
+        if ( hint === &#039;OPAQUE_BIN&#039; ) {
+            this.setRenderBinDetails( 0, &#039;RenderBin&#039; );
+        } else if ( hint === &#039;TRANSPARENT_BIN&#039; ) {
+            this.setRenderBinDetails( 10, &#039;DepthSortedBin&#039; );
+        } else {
+            this.setRenderBinDetails( 0, &#039;&#039; );
+        }
+    },
+
+    getUpdateCallbackList: function () {
+        return this._updateCallbackList;
+    },
+    removeUpdateCallback: function ( cb ) {
+        var arrayIdx = this._updateCallbackList.indexOf( cb );
+        if ( arrayIdx !== -1 )
+            this._updateCallbackList.splice( arrayIdx, 1 );
+    },
+    addUpdateCallback: function ( cb ) {
+        this._updateCallbackList.push( cb );
+    },
+    hasUpdateCallback: function ( cb ) {
+        return this._updateCallbackList.indexOf( cb ) !== -1;
+    },
+
+    setRenderBinDetails: function ( num, binName ) {
+        this._binNumber = num;
+        this._binName = binName;
+    },
+    getAttributeMap: function () {
+        return this.attributeMap;
+    },
+    getBinNumber: function () {
+        return this._binNumber;
+    },
+    getBinName: function () {
+        return this._binName;
+    },
+    setBinNumber: function ( binNum ) {
+        this._binNumber = binNum;
+    },
+    setBinName: function ( binName ) {
+        this._binName = binName;
+    },
+    getAttributeList: function () {
+        var attributeMap = this.attributeMap;
+        var attributeMapKeys = attributeMap.getKeys();
+
+        var l = attributeMapKeys.length;
+        var list = [];
+        for ( var i = 0; i &lt; l; i++ ) {
+            list.push( attributeMap[ attributeMapKeys[ i ] ] );
+        }
+        return list;
+    },
+    setShaderGeneratorName: function ( generatorName, mask ) {
+        this._shaderGeneratorPair = this.getAttributePair( generatorName, mask );
+    },
+    getShaderGeneratorPair: function () {
+        return this._shaderGeneratorPair;
+    },
+    getShaderGeneratorName: function () {
+        return this._shaderGeneratorPair ? this._shaderGeneratorPair.getShaderGeneratorName() : undefined;
+    },
+    releaseGLObjects: function () {
+        for ( var i = 0, j = this.textureAttributeMapList.length; i &lt; j; i++ ) {
+            this.getTextureAttribute( i, &#039;Texture&#039; ).releaseGLObjects();
+        }
+        var list = this.getAttributeList();
+        for ( i = 0, j = list.length; i &lt; j; i++ ) {
+            // Remove only if we have releaseGLObject method.
+            if ( list[ i ]._object.releaseGLObjects ) {
+                list[ i ]._object.releaseGLObjects();
+            }
+        }
+    },
+    _getUniformMap: function () {
+        return this.uniforms;
+    },
+
+    // for internal use, you should not call it directly
+    _setTextureAttribute: function ( unit, attributePair ) {
+
+        if ( this.textureAttributeMapList[ unit ] === undefined ) {
+            this.textureAttributeMapList[ unit ] = new Map();
+        }
+
+        var name = attributePair.getAttribute().getTypeMember();
+        var textureUnitAttributeMap = this.textureAttributeMapList[ unit ];
+
+        textureUnitAttributeMap[ name ] = attributePair;
+        textureUnitAttributeMap.dirty();
+
+    },
+
+    // for internal use, you should not call it directly
+    _setAttribute: function ( attributePair ) {
+
+        var name = attributePair.getAttribute().getTypeMember();
+        this.attributeMap[ name ] = attributePair;
+        this.attributeMap.dirty();
+
+    }
+
+} ), &#039;osg&#039;, &#039;StateSet&#039; );
+
+module.exports = StateSet;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

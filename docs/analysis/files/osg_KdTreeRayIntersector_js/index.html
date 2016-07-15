@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/KdTreeRayIntersector.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">51.78</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">241</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">71.30</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.40</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var TriangleIntersector = require( &#039;osgUtil/TriangleIntersector&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+
+var KdTreeRayIntersector = function () {
+
+    if ( arguments &amp;&amp; arguments.length ) {
+        Notify.warn( &#039;using ctor as initialiser is deprecated, use init(intersections, start, end, nodePath) and/or     setKdtree: function ( vertices, nodes, triangles )&#039; );
+    }
+
+    this._intersector = new TriangleIntersector();
+    this._dInvX = Vec3.create();
+    this._dInvY = Vec3.create();
+    this._dInvZ = Vec3.create();
+
+};
+
+KdTreeRayIntersector.prototype = {
+    setKdtree: function ( vertices, nodes, triangles ) {
+        this._vertices = vertices;
+        this._kdNodes = nodes;
+        this._triangles = triangles;
+    },
+    init: ( function () {
+
+        var dir = Vec3.create();
+
+        return function ( intersections, start, end, nodePath ) {
+            var d = Vec3.sub( end, start, dir );
+            var len = Vec3.length( d );
+            var invLen = 0.0;
+            if ( len !== 0.0 )
+                invLen = 1.0 / len;
+            Vec3.mult( d, invLen, d );
+            if ( d[ 0 ] !== 0.0 ) Vec3.mult( d, 1.0 / d[ 0 ], this._dInvX );
+            if ( d[ 1 ] !== 0.0 ) Vec3.mult( d, 1.0 / d[ 1 ], this._dInvY );
+            if ( d[ 2 ] !== 0.0 ) Vec3.mult( d, 1.0 / d[ 2 ], this._dInvZ );
+
+            this._intersector._intersections = intersections;
+            this._intersector.setNodePath( nodePath );
+            this._intersector.set( start, end );
+        };
+    } )(),
+    // Classic ray intersection test
+    // If it&#039;s a leaf it does ray-triangles intersection with the triangles in the cell
+    // If it&#039;s not a leaf, it descend in the tree in a recursive way as long as the ray
+    // intersects the boundinbox of the nodes
+    intersect: ( function () {
+
+        var v0 = Vec3.create();
+        var v1 = Vec3.create();
+        var v2 = Vec3.create();
+
+        return function ( node, ls, le ) {
+            var first = node._first;
+            var second = node._second;
+            var triangles = this._triangles;
+            var vertices = this._vertices;
+
+            if ( first &lt; 0 ) {
+                // treat as a leaf
+                var istart = -first - 1;
+                var iend = istart + second;
+                var intersector = this._intersector;
+                intersector.index = istart;
+
+                for ( var i = istart; i &lt; iend; ++i ) {
+                    var id = i * 3;
+                    var iv0 = triangles[ id ];
+                    var iv1 = triangles[ id + 1 ];
+                    var iv2 = triangles[ id + 2 ];
+
+                    var j = iv0 * 3;
+                    v0[ 0 ] = vertices[ j ];
+                    v0[ 1 ] = vertices[ j + 1 ];
+                    v0[ 2 ] = vertices[ j + 2 ];
+
+                    j = iv1 * 3;
+                    v1[ 0 ] = vertices[ j ];
+                    v1[ 1 ] = vertices[ j + 1 ];
+                    v1[ 2 ] = vertices[ j + 2 ];
+
+                    j = iv2 * 3;
+                    v2[ 0 ] = vertices[ j ];
+                    v2[ 1 ] = vertices[ j + 1 ];
+                    v2[ 2 ] = vertices[ j + 2 ];
+
+                    intersector.intersect( v0, v1, v2, iv0, iv1, iv2 );
+                }
+            } else {
+                var s = node._nodeRayStart;
+                var e = node._nodeRayEnd;
+                Vec3.copy( ls, s );
+                Vec3.copy( le, e );
+                if ( first &gt; 0 ) {
+                    if ( this.intersectAndClip( s, e, this._kdNodes[ first ]._bb ) ) {
+                        this.intersect( this._kdNodes[ first ], s, e );
+                    }
+                }
+                if ( second &gt; 0 ) {
+                    Vec3.copy( ls, s );
+                    Vec3.copy( le, e );
+                    if ( this.intersectAndClip( s, e, this._kdNodes[ second ]._bb ) ) {
+                        this.intersect( this._kdNodes[ second ], s, e );
+                    }
+                }
+            }
+        };
+    } )(),
+    // This method do 2 things
+    // It test if the ray intersects the node
+    // If so... it clip the ray so that the start and end point of the ray are
+    // snapped to the bounding box of the nodes
+    intersectAndClip: ( function () {
+
+        // needed because of precision picking
+        var tmp = new Float64Array( 3 );
+
+        return function ( s, e, bb ) {
+            var min = bb._min;
+            var xmin = min[ 0 ];
+            var ymin = min[ 1 ];
+            var zmin = min[ 2 ];
+
+            var max = bb._max;
+            var xmax = max[ 0 ];
+            var ymax = max[ 1 ];
+            var zmax = max[ 2 ];
+
+            var invX = this._dInvX;
+            var invY = this._dInvY;
+            var invZ = this._dInvZ;
+
+            if ( s[ 0 ] &lt;= e[ 0 ] ) {
+                // trivial reject of segment wholely outside.
+                if ( e[ 0 ] &lt; xmin ) return false;
+                if ( s[ 0 ] &gt; xmax ) return false;
+
+                if ( s[ 0 ] &lt; xmin ) {
+                    // clip s to xMin.
+                    Vec3.mult( invX, xmin - s[ 0 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+
+                if ( e[ 0 ] &gt; xmax ) {
+                    // clip e to xMax.
+                    Vec3.mult( invX, xmax - s[ 0 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+            } else {
+                if ( s[ 0 ] &lt; xmin ) return false;
+                if ( e[ 0 ] &gt; xmax ) return false;
+
+                if ( e[ 0 ] &lt; xmin ) {
+                    // clip s to xMin.
+                    Vec3.mult( invX, xmin - s[ 0 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+
+                if ( s[ 0 ] &gt; xmax ) {
+                    // clip e to xMax.
+                    Vec3.mult( invX, xmax - s[ 0 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+            }
+
+            // compate s and e against the yMin to yMax range of bb.
+            if ( s[ 1 ] &lt;= e[ 1 ] ) {
+
+                // trivial reject of segment wholely outside.
+                if ( e[ 1 ] &lt; ymin ) return false;
+                if ( s[ 1 ] &gt; ymax ) return false;
+
+                if ( s[ 1 ] &lt; ymin ) {
+                    // clip s to yMin.
+                    Vec3.mult( invY, ymin - s[ 1 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+
+                if ( e[ 1 ] &gt; ymax ) {
+                    // clip e to yMax.
+                    Vec3.mult( invY, ymax - s[ 1 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+            } else {
+                if ( s[ 1 ] &lt; ymin ) return false;
+                if ( e[ 1 ] &gt; ymax ) return false;
+
+                if ( e[ 1 ] &lt; ymin ) {
+                    // clip s to yMin.
+                    Vec3.mult( invY, ymin - s[ 1 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+
+                if ( s[ 1 ] &gt; ymax ) {
+                    // clip e to yMax.
+                    Vec3.mult( invY, ymax - s[ 1 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+            }
+
+            // compate s and e against the zMin to zMax range of bb.
+            if ( s[ 2 ] &lt;= e[ 2 ] ) {
+                // trivial reject of segment wholely outside.
+                if ( e[ 2 ] &lt; zmin ) return false;
+                if ( s[ 2 ] &gt; zmax ) return false;
+
+                if ( s[ 2 ] &lt; zmin ) {
+                    // clip s to zMin.
+                    Vec3.mult( invZ, zmin - s[ 2 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+
+                if ( e[ 2 ] &gt; zmax ) {
+                    // clip e to zMax.
+                    Vec3.mult( invZ, zmax - s[ 2 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+            } else {
+                if ( s[ 2 ] &lt; zmin ) return false;
+                if ( e[ 2 ] &gt; zmax ) return false;
+
+                if ( e[ 2 ] &lt; zmin ) {
+                    // clip s to zMin.
+                    Vec3.mult( invZ, zmin - s[ 2 ], tmp );
+                    Vec3.add( s, tmp, e );
+                }
+
+                if ( s[ 2 ] &gt; zmax ) {
+                    // clip e to zMax.
+                    Vec3.mult( invZ, zmax - s[ 2 ], tmp );
+                    Vec3.add( s, tmp, s );
+                }
+            }
+            return true;
+        };
+    } )()
+};
+
+module.exports = KdTreeRayIntersector;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

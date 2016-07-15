@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/PolytopePrimitiveIntersector.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">53.23</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">418</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">172.32</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">6.40</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var osgMath = require( &#039;osg/Math&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var PrimitiveFunctor = require( &#039;osg/PrimitiveFunctor&#039; );
+
+
+var PolytopeIntersection = function ( index, candidates, candidatesMasks, referencePlane, nodePath ) {
+    this._index = index - 1; ///&lt; primitive index
+    this._distance = 0; ///&lt; distance from reference plane
+    this._maxDistance = -1; ///&lt; maximum distance of intersection points from reference plane
+    this._numPoints = 0;
+    this._points = [];
+    this._maxNumIntersections = 6;
+    this._center = Vec3.create();
+    for ( var i = 0, j = candidates.length; i &lt; j; i++ ) {
+        if ( candidatesMasks[ i ] === 0 ) continue;
+        this._points[ this._numPoints++ ] = Vec3.copy( candidates[ i ], Vec3.create() );
+        Vec3.add( this._center, candidates[ i ], this._center );
+        var distance = referencePlane[ 0 ] * candidates[ i ][ 0 ] + referencePlane[ 1 ] * candidates[ i ][ 1 ] + referencePlane[ 2 ] * candidates[ i ][ 2 ] + referencePlane[ 3 ];
+        if ( distance &gt; this._maxDistance ) this._maxDistance = distance;
+        if ( this._numPoints === this._maxNumIntesections ) break;
+    }
+    Vec3.mult( this._center, 1 / this._numPoints, this._center );
+    this._distance = referencePlane[ 0 ] * this._center[ 0 ] + referencePlane[ 1 ] * this._center[ 1 ] + referencePlane[ 2 ] * this._center[ 2 ] + referencePlane[ 3 ];
+    this.nodePath = nodePath;
+};
+
+var PlanesLine = function ( planeMask, pos, dir ) {
+    this._planeMask = planeMask;
+    this._pos = pos;
+    this._dir = dir;
+};
+var PolytopePrimitiveIntersector = function () {
+    this._intersections = [];
+    this._nodePath = [];
+    this._index = 0;
+    this._referencePlane = [];
+    this._planes = []; ///&lt; active planes extracted from polytope
+    this._lines = []; ///&lt; all intersection lines of two polytope planes
+    this._candidates = [];
+    this._candidatesMasks = [];
+    this._lines = [];
+    this._planesMask = 0;
+    this._limitOneIntersection = false;
+    this._dimensionMask = undefined;
+};
+
+PolytopePrimitiveIntersector.prototype = {
+
+    setNodePath: function ( np ) {
+        this._nodePath = np;
+    },
+
+    set: function ( polytope, referencePlane ) {
+        this._planes = polytope;
+        this._referencePlane = referencePlane;
+        this._planesMask = 0;
+        this._lines.length = 0;
+        for ( var i = 0; i &lt; this._planes.length; i++ ) {
+            this._planesMask = ( this._planesMask &lt;&lt; 1 ) | 1;
+        }
+    },
+
+    setDimensionMask: function ( mask ) {
+        this._dimensionMask = mask;
+    },
+
+    apply: function ( node ) {
+        if ( !node.getAttributes().Vertex ) {
+            return;
+        }
+        var vertices = node.getAttributes().Vertex.getElements();
+        var self = this;
+        // The callback must be defined as a closure
+        /* jshint asi: true */
+        var cb = function () {
+            return {
+                operatorPoint: function ( v ) {
+                    self.intersectPoint( v );
+                },
+                operatorLine: function ( v1, v2 ) {
+                    self.intersectLine( v1, v2 );
+                },
+                operatorTriangle: function ( v1, v2, v3 ) {
+                    self.intersectTriangle( v1, v2, v3 );
+                }
+            }
+        };
+        var pf = new PrimitiveFunctor( node, cb, vertices );
+        pf.apply();
+    },
+
+
+    checkCandidatePoints: function ( insideMask ) {
+        var selectorMask = 0x1;
+        var numCands = this._candidates.length;
+        for ( var i = 0, j = this._planes.length; i &lt; j &amp;&amp; numCands &gt; 0; ++i, selectorMask &lt;&lt;= 1 ) {
+            if ( insideMask &amp; selectorMask ) continue;
+            for ( var c = 0; c &lt; this._candidates.length; ++c ) {
+                if ( this._candidatesMasks[ c ] === 0 ) continue;
+                if ( selectorMask &amp; this._candidatesMasks[ c ] ) continue;
+                if ( this.distance( this._planes[ i ], this._candidates[ c ] ) &lt; 0.0 ) {
+                    this._candidatesMasks[ c ] = 0;
+                    --numCands;
+                    if ( numCands === 0 ) return 0;
+                }
+            }
+        }
+        return numCands;
+    },
+
+    intersectPoint: ( function () {
+        var hit = Vec3.create();
+        return function ( v ) {
+            this._index++;
+            if ( ( this._dimensionMask &amp; ( 1 &lt;&lt; 0 ) ) === 0 ) return;
+            if ( this._limitOneIntersection &amp;&amp; this._intersections.length &gt; 0 ) return;
+            var d;
+
+            for ( var i = 0, j = this._planes.length; i &lt; j; ++i ) {
+                d = this.distance( this._planes[ i ], v );
+                if ( d &lt; 0.0 ) {
+                    // point is outside the polytope
+                    return;
+                }
+            }
+            this._candidates = [];
+            this._candidatesMasks = [];
+            // Intersection found: Copy the value and push it
+            Vec3.copy( v, hit );
+            this._candidates.push( hit );
+            this._candidatesMasks.push( this._planesMask );
+            this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+        };
+    } )(),
+
+
+    intersectLine: ( function () {
+
+        var hit = Vec3.create();
+        return function ( v1, v2 ) {
+            this._index++;
+            if ( ( this._dimensionMask &amp; ( 1 &lt;&lt; 1 ) ) === 0 ) return;
+            if ( this._limitOneIntersection &amp;&amp; this._intersections.length &gt; 0 ) return;
+            var v1Inside = true;
+            var v2Inside = true;
+            var selectorMask = 0x1;
+            var insideMask = 0x0;
+            this._candidates = [];
+            this._candidatesMasks = [];
+            var d1, d2, d1IsNegative, d2IsNegative;
+            for ( var i = 0, j = this._planes.length; i &lt; j; ++i, selectorMask &lt;&lt;= 1 ) {
+                d1 = this.distance( this._planes[ i ], v1 );
+                d2 = this.distance( this._planes[ i ], v2 );
+                d1IsNegative = ( d1 &lt; 0.0 );
+                d2IsNegative = ( d2 &lt; 0.0 );
+                if ( d1IsNegative &amp;&amp; d2IsNegative ) return; // line outside
+                if ( !d1IsNegative &amp;&amp; !d2IsNegative ) {
+                    // completly inside this plane
+                    insideMask |= selectorMask;
+                    continue;
+                }
+                if ( d1IsNegative ) v1Inside = false;
+                if ( d2IsNegative ) v2Inside = false;
+                if ( d1 === 0.0 ) {
+                    Vec3.copy( v1, hit );
+                    this._candidates.push( hit );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( d2 === 0.0 ) {
+                    Vec3.copy( v2, hit );
+                    this._candidates.push( hit );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( d1IsNegative &amp;&amp; !d2IsNegative ) {
+                    //v1-(v2-v1)*(d1/(-d1+d2))) )
+                    Vec3.sub( v2, v1, hit );
+                    Vec3.mult( hit, d1 / ( -d1 + d2 ), hit );
+                    Vec3.sub( v1, hit, hit );
+                    this._candidates.push( hit );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( !d1IsNegative &amp;&amp; d2IsNegative ) {
+                    //(v1+(v2-v1)*(d1/(d1-d2)))
+                    Vec3.sub( v2, v1, hit );
+                    Vec3.mult( hit, d1 / ( d1 - d2 ), hit );
+                    Vec3.add( v1, hit, hit );
+                    this._candidates.push( hit );
+                    this._candidatesMasks.push( selectorMask );
+                }
+            }
+
+            if ( insideMask === this._planesMask ) {
+                this._candidates.push( Vec3.copy( v1, Vec3.create() ) );
+                this._candidatesMasks.push( this._planesMask );
+                this._candidates.push( Vec3.copy( v2, Vec3.create() ) );
+                this._candidatesMasks.push( this._planesMask );
+                this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+                return;
+            }
+
+            var numCands = this.checkCandidatePoints( insideMask );
+            if ( numCands &gt; 0 ) {
+                if ( v1Inside ) {
+                    this._candidatesMasks.push( this._planesMask );
+                    this._candidates.push( Vec3.copy( v1, Vec3.create() ) );
+                }
+                if ( v2Inside ) {
+                    this._candidatesMasks.push( this._planesMask );
+                    this._candidates.push( Vec3.copy( v2, Vec3.create() ) );
+                }
+                this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+            }
+        };
+    } )(),
+
+    intersectTriangle: ( function () {
+
+        var tmpHit = Vec3.create();
+        // Only needed for special case, should we move it to a new function?
+        var e1 = Vec3.create();
+        var e2 = Vec3.create();
+        var point = Vec3.create();
+        var p = Vec3.create();
+        var s = Vec3.create();
+        var q = Vec3.create();
+        return function ( v1, v2, v3 ) {
+            this._index++;
+            if ( ( this._dimensionMask &amp; ( 1 &lt;&lt; 2 ) ) === 0 ) return;
+            if ( this._limitOneIntersection &amp;&amp; this._intersections.length &gt; 0 ) return;
+            var selectorMask = 0x1;
+            var insideMask = 0x0;
+            this._candidates = [];
+            this._candidatesMasks = [];
+            var d1, d2, d3, d1IsNegative, d2IsNegative, d3IsNegative;
+            for ( var i = 0, j = this._planes.length; i &lt; j; ++i, selectorMask &lt;&lt;= 1 ) {
+                d1 = this.distance( this._planes[ i ], v1 );
+                d2 = this.distance( this._planes[ i ], v2 );
+                d3 = this.distance( this._planes[ i ], v3 );
+                d1IsNegative = ( d1 &lt; 0.0 );
+                d2IsNegative = ( d2 &lt; 0.0 );
+                d3IsNegative = ( d3 &lt; 0.0 );
+
+                if ( d1IsNegative &amp;&amp; d2IsNegative &amp;&amp; d3IsNegative ) return; // Triangle outside
+                if ( !d1IsNegative &amp;&amp; !d2IsNegative &amp;&amp; !d3IsNegative ) {
+                    // completly inside this plane
+                    insideMask |= selectorMask;
+                    continue;
+                }
+                // edge v1-v2 intersects
+                if ( d1 === 0.0 ) {
+                    Vec3.copy( v1, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( d2 === 0.0 ) {
+                    Vec3.copy( v2, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( d1IsNegative &amp;&amp; !d2IsNegative ) {
+                    //v1-(v2-v1)*(d1/(-d1+d2))) )
+                    Vec3.sub( v2, v1, tmpHit );
+                    Vec3.mult( tmpHit, d1 / ( -d1 + d2 ), tmpHit );
+                    Vec3.sub( v1, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( !d1IsNegative &amp;&amp; d2IsNegative ) {
+                    //(v1+(v2-v1)*(d1/(d1-d2)))
+                    Vec3.sub( v2, v1, tmpHit );
+                    Vec3.mult( tmpHit, d1 / ( d1 - d2 ), tmpHit );
+                    Vec3.add( v1, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                }
+                // edge v1-v3 intersects
+                if ( d3 === 0.0 ) {
+                    Vec3.copy( v3, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( d1IsNegative &amp;&amp; !d3IsNegative ) {
+                    // v1-(v3-v1)*(d1/(-d1+d3))
+                    Vec3.sub( v3, v1, tmpHit );
+                    Vec3.mult( tmpHit, d1 / ( -d1 + d3 ), tmpHit );
+                    Vec3.sub( v1, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( !d1IsNegative &amp;&amp; d3IsNegative ) {
+                    // v1+(v3-v1)*(d1/(d1-d3))
+                    Vec3.sub( v3, v1, tmpHit );
+                    Vec3.mult( tmpHit, d1 / ( d1 - d3 ), tmpHit );
+                    Vec3.add( v1, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                }
+                // edge v2-v3 intersects
+                if ( d2IsNegative &amp;&amp; !d3IsNegative ) {
+                    // v2-(v3-v2)*(d2/(-d2+d3))
+                    Vec3.sub( v3, v2, tmpHit );
+                    Vec3.mult( tmpHit, d2 / ( -d2 + d3 ), tmpHit );
+                    Vec3.sub( v2, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                } else if ( !d2IsNegative &amp;&amp; d3IsNegative ) {
+                    //v2+(v3-v2)*(d2/(d2-d3))
+                    Vec3.sub( v3, v2, tmpHit );
+                    Vec3.mult( tmpHit, d2 / ( d2 - d3 ), tmpHit );
+                    Vec3.add( v2, tmpHit, tmpHit );
+                    this._candidates.push( Vec3.copy( tmpHit, Vec3.create() ) );
+                    this._candidatesMasks.push( selectorMask );
+                }
+            }
+            if ( insideMask === this._planesMask ) {
+                // triangle lies inside of all planes
+                this._candidates.push( Vec3.copy( v1, Vec3.create() ) );
+                this._candidatesMasks.push( this._planesMask );
+                this._candidates.push( Vec3.copy( v2, Vec3.create() ) );
+                this._candidatesMasks.push( this._planesMask );
+                this._candidates.push( Vec3.copy( v3, Vec3.create() ) );
+                this._candidatesMasks.push( this._planesMask );
+                this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+                return;
+            }
+            var numCands = this.checkCandidatePoints( insideMask );
+            if ( numCands &gt; 0 ) {
+                this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+                return;
+            }
+            // handle case where the polytope goes through the triangle
+            // without containing any point of it
+            // Probably it can be moved to other function and do the relevant closures.
+
+            var lines = this.getPolytopeLines();
+            this._candidates = [];
+            // check all polytope lines against the triangle
+            // use algorithm from &quot;Real-time rendering&quot; (second edition) pp.580
+            //var e1= Vec3.create();
+            //var e2= Vec3.create();
+
+            Vec3.sub( v2, v1, e1 );
+            Vec3.sub( v3, v1, e2 );
+            for ( i = 0; i &lt; lines.length; ++i ) {
+                //var point = Vec3.create();
+                //var p = Vec3.create(); 
+                Vec3.cross( lines[ i ]._dir, e2, p );
+                var a = Vec3.dot( e1, p );
+                if ( Math.abs( a ) &lt; 1E-6 ) continue;
+                var f = 1.0 / a;
+                //var s = Vec3.create();
+                Vec3.sub( lines[ i ]._pos, v1, s );
+                var u = f * ( Vec3.dot( s, p ) );
+                if ( u &lt; 0.0 || u &gt; 1.0 ) continue;
+                //var q = Vec3.create();
+                Vec3.cross( s, e1, q );
+                var v = f * ( Vec3.dot( lines[ i ]._dir, q ) );
+                if ( v &lt; 0.0 || u + v &gt; 1.0 ) continue;
+                var t = f * ( Vec3.dot( e2, q ) );
+                Vec3.mult( lines[ i ]._dir, t, point );
+                Vec3.add( lines[ i ]._pos, point, point );
+                this._candidates.push( Vec3.copy( point, Vec3.create() ) );
+                this._candidatesMasks.push( lines[ i ]._planeMask );
+            }
+            numCands = this.checkCandidatePoints( insideMask );
+            if ( numCands &gt; 0 ) {
+                this._intersections.push( new PolytopeIntersection( this._index, this._candidates, this._candidatesMasks, this._referencePlane, this._nodePath.slice( 0 ) ) );
+                return;
+            }
+        };
+    } )(),
+
+    getPolytopeLines: ( function () {
+        var lineDirection = Vec3.create();
+        var searchDirection = Vec3.create();
+        var normal1 = Vec3.create();
+        var point1 = Vec3.create();
+        var normal2 = Vec3.create();
+        var linePoint = Vec3.create();
+        var epsilon = 1E-6;
+        return function () {
+            if ( this._lines.length &gt; 0 ) return this._lines; // Polytope lines already calculated
+            var selectorMask = 0x1;
+            for ( var i = 0, j = this._planes.length; i &lt; j; i++, selectorMask &lt;&lt;= 1 ) {
+                Vec3.copy( this.getNormal( this._planes[ i ] ), normal1 );
+                Vec3.mult( normal1, -this._planes[ i ][ 3 ], point1 ); // canonical point on plane[ i ]
+                var subSelectorMask = ( selectorMask &lt;&lt; 1 );
+                for ( var jt = i + 1, k = this._planes.length; jt &lt; k; ++jt, subSelectorMask &lt;&lt;= 1 ) {
+                    Vec3.copy( this.getNormal( this._planes[ jt ] ), normal2 );
+                    if ( Math.abs( Vec3.dot( normal1, normal2 ) ) &gt; ( 1.0 - epsilon ) ) continue;
+                    Vec3.cross( normal1, normal2, lineDirection );
+                    Vec3.cross( lineDirection, normal1, searchDirection );
+                    //-plane2.distance(point1)/(searchDirection*normal2);
+                    var searchDist = -this.distance( this._planes[ jt ], point1 ) / Vec3.dot( searchDirection, normal2 );
+                    if ( osgMath.isNaN( searchDist ) ) continue;
+                    Vec3.mult( searchDirection, searchDist, linePoint );
+                    Vec3.add( point1, lineDirection, lineDirection );
+                    this._lines.push( new PlanesLine( selectorMask | subSelectorMask, Vec3.copy( linePoint, Vec3.create() ), Vec3.copy( lineDirection, Vec3.create() ) ) );
+                }
+            }
+            return this._lines;
+        };
+    } )(),
+
+    setLimitOneIntersection: function ( limit ) {
+        this._limitOneIntersection = limit;
+    },
+
+    distance: function ( plane, v ) {
+        var d = plane[ 0 ] * v[ 0 ] + plane[ 1 ] * v[ 1 ] + plane[ 2 ] * v[ 2 ] + plane[ 3 ];
+        return d;
+    },
+
+    getNormal: ( function () {
+        var normal = Vec3.create();
+        return function ( plane ) {
+            normal[ 0 ] = plane[ 0 ];
+            normal[ 1 ] = plane[ 1 ];
+            normal[ 2 ] = plane[ 2 ];
+            return normal;
+        };
+    } )()
+};
+
+module.exports = PolytopePrimitiveIntersector;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

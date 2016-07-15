@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/State.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">61.80</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">1219</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">116.19</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">11.72</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Map = require( &#039;osg/Map&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var Object = require( &#039;osg/Object&#039; );
+var Program = require( &#039;osg/Program&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var Stack = require( &#039;osg/Stack&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var WebGLCaps = require( &#039;osg/WebGLCaps&#039; );
+
+var State = function ( shaderGeneratorProxy ) {
+    Object.call( this );
+
+    this._graphicContext = undefined;
+    this._shaderGeneratorProxy = shaderGeneratorProxy;
+
+    if ( shaderGeneratorProxy === undefined )
+        console.break();
+
+    this._currentVAO = null;
+    this._currentIndexVBO = null;
+
+    this.vertexAttribList = [];
+    this.stateSets = new Stack();
+    this._shaderGeneratorNames = new Stack();
+    this.uniforms = new Map();
+
+    this.textureAttributeMapList = [];
+
+    this.attributeMap = new Map();
+
+    this.modelWorldMatrix = Uniform.createMatrix4( Matrix.create(), &#039;ModelWorldMatrix&#039; );
+    this.viewMatrix = Uniform.createMatrix4( Matrix.create(), &#039;ViewMatrix&#039; );
+    this.modelViewMatrix = Uniform.createMatrix4( Matrix.create(), &#039;ModelViewMatrix&#039; );
+    this.projectionMatrix = Uniform.createMatrix4( Matrix.create(), &#039;ProjectionMatrix&#039; );
+    this.normalMatrix = Uniform.createMatrix4( Matrix.create(), &#039;NormalMatrix&#039; );
+
+    // track uniform for color array enabled
+    var arrayColorEnable = new Stack();
+    arrayColorEnable.globalDefault = Uniform.createFloat1( 0.0, &#039;ArrayColorEnabled&#039; );
+
+    this.uniforms.setMap( {
+        ArrayColorEnabled: arrayColorEnable
+    } );
+
+
+    this._previousColorAttribPair = {};
+    this.vertexAttribMap = {};
+    this.vertexAttribMap._disable = [];
+    this.vertexAttribMap._keys = [];
+
+    this._frameStamp = undefined;
+
+    // we dont use Map because in this use case with a few entries
+    // {} is faster
+    this._programCommonUniformsCache = {};
+
+    // keep pointer on the last applied modelview matrix
+    this._modelViewMatrix = undefined;
+    // keep pointer on the last applied projection matrix
+    this._projectionMatrix = undefined;
+
+
+    // keep track of last applied program
+    this._program = undefined;
+    // inject a default program to initialize the stack Program
+    this.applyAttribute( new Program() );
+
+    this._numPushStateSet = 0;
+};
+
+State.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Object.prototype, {
+
+    getCacheUniformsApplyRenderLeaf: function () {
+        return this._programCommonUniformsCache;
+    },
+
+    setGraphicContext: function ( graphicContext ) {
+        this._graphicContext = graphicContext;
+        this._extVAO = WebGLCaps.instance( graphicContext ).getWebGLExtension( &#039;OES_vertex_array_object&#039; );
+    },
+
+    getGraphicContext: function () {
+        return this._graphicContext;
+    },
+
+    getShaderGeneratorProxy: function () {
+        return this._shaderGeneratorProxy;
+    },
+
+    pushCheckOverride: function ( stack, object, maskValue ) {
+        // object can be a Uniform, an Attribute, or a shader generator name
+        if ( stack.values().length === 0 ) {
+            stack.push( this.getObjectPair( object, maskValue ) );
+        } else if ( ( stack.back().value &amp; StateAttribute.OVERRIDE ) &amp;&amp; !( maskValue &amp; StateAttribute.PROTECTED ) ) {
+            stack.push( stack.back() );
+        } else {
+            stack.push( this.getObjectPair( object, maskValue ) );
+        }
+    },
+
+    pushStateSet: function ( stateset ) {
+        this._numPushStateSet++;
+        this.stateSets.push( stateset );
+
+        if ( stateset.attributeMap ) {
+            this.pushAttributeMap( this.attributeMap, stateset.attributeMap );
+        }
+
+        if ( stateset.textureAttributeMapList ) {
+            var list = stateset.textureAttributeMapList;
+            for ( var textureUnit = 0, l = list.length; textureUnit &lt; l; textureUnit++ ) {
+                if ( !list[ textureUnit ] ) {
+                    continue;
+                }
+
+                var textureUnitAttributeMap = this.getOrCreateTextureAttributeMap( textureUnit );
+                this.pushAttributeMap( textureUnitAttributeMap, list[ textureUnit ] );
+            }
+        }
+
+        if ( stateset.uniforms ) {
+            this.pushUniformsList( this.uniforms, stateset.uniforms );
+        }
+        var generatorPair = stateset.getShaderGeneratorPair();
+        if ( generatorPair )
+            this.pushCheckOverride( this._shaderGeneratorNames, generatorPair.getShaderGeneratorName(), generatorPair.getValue() );
+    },
+
+    getStateSetStackSize: function () {
+        return this.stateSets.values().length;
+    },
+
+    insertStateSet: ( function () {
+        var tmpStack = [];
+
+        return function ( pos, stateSet ) {
+
+            tmpStack.length = 0;
+            var length = this.getStateSetStackSize();
+            while ( length &gt; pos ) {
+                tmpStack.push( this.stateSets.back() );
+                this.popStateSet();
+                length--;
+            }
+
+            this.pushStateSet( stateSet );
+
+            for ( var i = tmpStack.length - 1; i &gt;= 0; i-- ) {
+                this.pushStateSet( tmpStack[ i ] );
+            }
+
+        };
+    } )(),
+
+    removeStateSet: ( function () {
+        var tmpStack = [];
+
+        return function ( pos ) {
+
+            var length = this.getStateSetStackSize();
+            if ( pos &gt;= length ) {
+                Notify.warn( &#039;Warning State:removeStateSet &#039;, pos, &#039; out of range&#039; );
+                return;
+            }
+
+            tmpStack.length = 0;
+
+            // record the StateSet above the one we intend to remove
+            while ( length - 1 &gt; pos ) {
+                tmpStack.push( this.stateSets.back() );
+                this.popStateSet();
+                length--;
+            }
+
+            // remove the intended StateSet as well
+            this.popStateSet();
+
+            // push back the original ones that were above the remove StateSet
+            for ( var i = tmpStack.length - 1; i &gt;= 0; i-- ) {
+                this.pushStateSet( tmpStack[ i ] );
+            }
+
+        };
+    } )(),
+
+
+    // needed because we use a cache during the frame to avoid
+    // applying uniform or operation. At each frame we need to
+    // invalidate those informations
+    resetCacheFrame: function () {
+        this._modelViewMatrix = this._projectionMatrix = undefined;
+    },
+
+    resetStats: function () {
+        this._numPushStateSet = 0;
+    },
+
+    // apply program if needed
+    applyProgram: function ( program ) {
+        if ( this._program === program ) return;
+        this._program = program;
+        this.getGraphicContext().useProgram( program );
+    },
+
+    applyModelViewMatrix: ( function () {
+
+        var normal = Matrix.create();
+
+        return function StateApplyModelViewMatrix( matrix ) {
+
+            if ( this._modelViewMatrix === matrix ) return false;
+
+            var program = this.getLastProgramApplied();
+            var uniformCache = program.getUniformsCache();
+            var mu = this.modelViewMatrix;
+            var mul = uniformCache.ModelViewMatrix;
+            var gc = this.getGraphicContext();
+            if ( mul ) {
+
+                mu.setMatrix4( matrix );
+                mu.apply( gc, mul );
+            }
+
+            var sendNormal;
+            if ( this._modelViewMatrix ) {
+
+                // check if we need to push normal
+                // test rotation component, if not diff
+                // we dont need to send normal
+                var m2 = this._modelViewMatrix;
+                for ( var i = 0; i &lt; 11; i++ ) {
+                    if ( matrix[ i ] !== m2[ i ] ) {
+                        sendNormal = true;
+                        break;
+                    }
+                }
+            } else {
+                sendNormal = true;
+            }
+
+            if ( sendNormal ) {
+                mu = this.normalMatrix;
+                mul = uniformCache.NormalMatrix;
+                if ( mul ) {
+
+                    normal[ 0 ] = matrix[ 0 ];
+                    normal[ 1 ] = matrix[ 1 ];
+                    normal[ 2 ] = matrix[ 2 ];
+                    normal[ 4 ] = matrix[ 4 ];
+                    normal[ 5 ] = matrix[ 5 ];
+                    normal[ 6 ] = matrix[ 6 ];
+                    normal[ 8 ] = matrix[ 8 ];
+                    normal[ 9 ] = matrix[ 9 ];
+                    normal[ 10 ] = matrix[ 10 ];
+
+                    Matrix.inverse( normal, normal );
+                    Matrix.transpose( normal, normal );
+
+                    mu.setMatrix4( normal );
+                    mu.apply( gc, mul );
+                }
+            }
+
+            this._modelViewMatrix = matrix;
+            return true;
+        };
+    } )(),
+
+
+    applyModelViewMatrixEperiment: ( function () {
+
+        var normal = Matrix.create();
+
+        var checkMatrix = function ( m0, m1 ) {
+            if ( m0[ 0 ] !== m1[ 0 ] ) return true;
+            if ( m0[ 1 ] !== m1[ 1 ] ) return true;
+            if ( m0[ 2 ] !== m1[ 2 ] ) return true;
+            if ( m0[ 4 ] !== m1[ 4 ] ) return true;
+            if ( m0[ 5 ] !== m1[ 5 ] ) return true;
+            if ( m0[ 6 ] !== m1[ 6 ] ) return true;
+            if ( m0[ 8 ] !== m1[ 8 ] ) return true;
+            if ( m0[ 9 ] !== m1[ 9 ] ) return true;
+            if ( m0[ 10 ] !== m1[ 10 ] ) return true;
+            return false;
+        };
+
+        var epsilon = 1e-6;
+        var scaleEpsilonMax = 1.0 + epsilon;
+        var scaleEpsilonMin = 1.0 - epsilon;
+
+        return function StateApplyModelViewMatrix( matrix ) {
+            if ( this._modelViewMatrix === matrix ) return false;
+
+            var program = this.getLastProgramApplied();
+
+            var mu = this.modelViewMatrix;
+            var mul = program.getUniformsCache().ModelViewMatrix;
+            if ( mul ) {
+
+                mu.setMatrix4( matrix );
+                mu.apply( this.getGraphicContext(), mul );
+            }
+
+            var sendNormal = true;
+            if ( this._modelViewMatrix ) {
+                sendNormal = checkMatrix( matrix, this._modelViewMatrix );
+                // check if we need to push normal
+                // test rotation component, if not diff
+                // we dont need to send normal
+                // for ( var i = 0; i &lt; 11; i++ ) {
+                //     if ( matrix[ i ] !== this._modelViewMatrix[ i ] ) {
+                //         sendNormal = true;
+                //         break;
+                //     }
+                // }
+            }
+
+            if ( sendNormal ) {
+                mu = this.normalMatrix;
+                mul = program.getUniformsCache().NormalMatrix;
+                if ( mul ) {
+
+                    // Matrix.copy( matrix, normal );
+                    normal[ 0 ] = matrix[ 0 ];
+                    normal[ 1 ] = matrix[ 1 ];
+                    normal[ 2 ] = matrix[ 2 ];
+                    normal[ 4 ] = matrix[ 4 ];
+                    normal[ 5 ] = matrix[ 5 ];
+                    normal[ 6 ] = matrix[ 6 ];
+                    normal[ 8 ] = matrix[ 8 ];
+                    normal[ 9 ] = matrix[ 9 ];
+                    normal[ 10 ] = matrix[ 10 ];
+
+                    // check for scaling
+                    var xlen = normal[ 0 ] * normal[ 0 ] + normal[ 4 ] * normal[ 4 ] + normal[ 8 ] * normal[ 8 ];
+                    var ylen = normal[ 1 ] * normal[ 1 ] + normal[ 5 ] * normal[ 5 ] + normal[ 9 ] * normal[ 9 ];
+                    var zlen = normal[ 2 ] * normal[ 2 ] + normal[ 6 ] * normal[ 6 ] + normal[ 10 ] * normal[ 10 ];
+
+                    // http://www.gamedev.net/topic/637192-detect-non-uniform-scaling-in-matrix/
+                    if ( xlen &gt; scaleEpsilonMax || xlen &lt; scaleEpsilonMin ||
+                        ylen &gt; scaleEpsilonMax || ylen &lt; scaleEpsilonMin ||
+                        zlen &gt; scaleEpsilonMax || zlen &lt; scaleEpsilonMin ) {
+
+                        Matrix.inverse( normal, normal );
+                        Matrix.transpose( normal, normal );
+                    }
+
+                    mu.setMatrix4( normal );
+                    mu.apply( this.getGraphicContext(), mul );
+                }
+            }
+
+            this._modelViewMatrix = matrix;
+            return true;
+        };
+    } )(),
+
+    applyProjectionMatrix: function ( matrix ) {
+
+        if ( this._projectionMatrix === matrix ) return;
+
+        this._projectionMatrix = matrix;
+        var program = this.getLastProgramApplied();
+        var mu = this.projectionMatrix;
+
+        var mul = program.getUniformsCache()[ mu.getName() ];
+        if ( mul ) {
+
+            mu.setMatrix4( matrix );
+            mu.apply( this.getGraphicContext(), mul );
+
+        }
+    },
+
+    applyStateSet: function ( stateset ) {
+        this.pushStateSet( stateset );
+        this.apply();
+        this.popStateSet();
+    },
+
+    getStateSetStackHash: function () {
+        var values = this.stateSets.values();
+        var sum = 0;
+        for ( var i = 0, l = values.length; i &lt; l; i++ )
+            sum += values[ i ].getInstanceID();
+        return sum;
+    },
+
+    popAllStateSets: function () {
+        while ( this.stateSets.values().length ) {
+            this.popStateSet();
+        }
+    },
+
+    popStateSet: function () {
+
+        if ( this.stateSets.empty() ) return;
+
+        var stateset = this.stateSets.pop();
+
+        if ( stateset.attributeMap ) {
+            this.popAttributeMap( this.attributeMap, stateset.attributeMap );
+        }
+
+        if ( stateset.textureAttributeMapList ) {
+            var list = stateset.textureAttributeMapList;
+            for ( var textureUnit = 0, l = list.length; textureUnit &lt; l; textureUnit++ ) {
+                if ( !list[ textureUnit ] ) {
+                    continue;
+                }
+                this.popAttributeMap( this.textureAttributeMapList[ textureUnit ], list[ textureUnit ] );
+            }
+        }
+
+        if ( stateset.uniforms ) {
+            this.popUniformsList( this.uniforms, stateset.uniforms );
+        }
+
+        if ( stateset.getShaderGeneratorPair() ) {
+            this._shaderGeneratorNames.pop();
+        }
+    },
+
+    _createAttributeStack: function ( attributeMap, key, globalDefault ) {
+
+        var attributeStack = new Stack();
+
+        attributeMap[ key ] = attributeStack;
+        attributeMap[ key ].globalDefault = globalDefault;
+        attributeMap.dirty();
+
+        return attributeStack;
+
+    },
+
+    haveAppliedAttribute: function ( attribute ) {
+
+        var key = attribute.getTypeMember();
+        var attributeStack = this.attributeMap[ key ];
+        if ( !attributeStack ) {
+            attributeStack = this._createAttributeStack( this.attributeMap, key, attribute.cloneType() );
+        }
+        attributeStack.lastApplied = attribute;
+        attributeStack.asChanged = true;
+
+    },
+
+    applyAttribute: function ( attribute ) {
+
+        var key = attribute.getTypeMember();
+
+        var attributeMap = this.attributeMap;
+        var attributeStack = attributeMap[ key ];
+        if ( !attributeStack ) {
+            attributeStack = this._createAttributeStack( this.attributeMap, key, attribute.cloneType() );
+        }
+
+        if ( attributeStack.lastApplied !== attribute ) {
+
+            if ( attribute.apply ) {
+                attribute.apply( this );
+            }
+            attributeStack.lastApplied = attribute;
+            attributeStack.asChanged = true;
+        }
+    },
+
+    applyTextureAttribute: function ( unit, attribute ) {
+
+
+        var gl = this.getGraphicContext();
+        gl.activeTexture( gl.TEXTURE0 + unit );
+        var key = attribute.getTypeMember();
+
+        if ( !this.textureAttributeMapList[ unit ] ) {
+            this.textureAttributeMapList[ unit ] = new Map();
+        }
+
+        var textureUnitAttributeMap = this.getOrCreateTextureAttributeMap( unit );
+        var attributeStack = textureUnitAttributeMap[ key ];
+        if ( !attributeStack ) {
+            attributeStack = this._createAttributeStack( textureUnitAttributeMap, key, attribute.cloneType() );
+        }
+
+
+        if ( attributeStack.lastApplied !== attribute ) {
+
+            if ( attribute.apply ) {
+
+                // there is a texture we bind it.
+                attribute.apply( this, unit );
+
+                // TODO: optimization:
+                // if attribute.isTextureNull()
+                // only bind if last Framebuffer Texture Binded
+                // are the same as those we try to write from
+                // need rewrite of the fbo attachments system to keep history
+                // and state to keep last fbo textures binded.
+                // (applyTextureAttributeStack concerned too)
+            }
+            attributeStack.lastApplied = attribute;
+            attributeStack.asChanged = true;
+        }
+    },
+
+    getLastProgramApplied: function () {
+        return this.attributeMap.Program.lastApplied;
+    },
+
+    applyDefault: function () {
+        // reset GL State To Default
+        // we skip the textures/uniforms/shaders call since they are not necessary
+
+        // noticed that we accumulate lot of stack, maybe because of the stateGraph
+        // CP: ^^ really ? check it / report an issue
+        this.popAllStateSets();
+
+        this.applyAttributeMap( this.attributeMap );
+        this.applyTextureAttributeMapList( this.textureAttributeMapList );
+    },
+
+    apply: function () {
+
+        var lastProgram = this.getLastProgramApplied();
+
+        this.applyAttributeMap( this.attributeMap );
+        this.applyTextureAttributeMapList( this.textureAttributeMapList );
+
+        var generatedProgram = this._generateAndApplyProgram();
+
+        if ( generatedProgram ) {
+            // will cache uniform and apply them with the program
+
+            this._applyGeneratedProgramUniforms( this.attributeMap.Program.lastApplied );
+
+        } else {
+
+            // custom program so we will iterate on uniform from the program and apply them
+            // but in order to be able to use Attribute in the state graph we will check if
+            // our program want them. It must be defined by the user
+            this._applyCustomProgramUniforms( this.attributeMap.Program.lastApplied );
+
+        }
+
+        // reset reference of last applied matrix
+        if ( lastProgram !== this.getLastProgramApplied() ) {
+            this._modelViewMatrix = undefined;
+            this._projectionMatrix = undefined;
+        }
+    },
+
+
+    applyAttributeMap: function ( attributeMap ) {
+
+        var attributeStack;
+        var attributeMapKeys = attributeMap.getKeys();
+
+        for ( var i = 0, l = attributeMapKeys.length; i &lt; l; i++ ) {
+            var key = attributeMapKeys[ i ];
+
+            attributeStack = attributeMap[ key ];
+            if ( !attributeStack || !attributeStack.asChanged ) {
+                continue;
+            }
+
+            var attribute;
+            if ( attributeStack.values().length === 0 ) {
+                attribute = attributeStack.globalDefault;
+            } else {
+                attribute = attributeStack.back().object;
+            }
+
+            /*develblock:start*/
+            Notify.assert( key === attribute.getTypeMember(), &#039;State:applyAttributeMap attribute key &#039; + key + &#039; !== &#039; + attribute.getTypeMember() );
+            /*develblock:end*/
+
+
+            if ( attributeStack.lastApplied !== attribute ) {
+
+                if ( attribute.apply )
+                    attribute.apply( this );
+
+                attributeStack.lastApplied = attribute;
+
+            }
+            attributeStack.asChanged = false;
+
+        }
+    },
+
+    getObjectPair: function ( object, value ) {
+        return {
+            object: object,
+            value: value
+        };
+    },
+
+    pushUniformsList: function ( uniformMap, stateSetUniformMap ) {
+        /*jshint bitwise: false */
+        var name;
+        var uniform;
+
+        var stateSetUniformMapKeys = stateSetUniformMap.getKeys();
+
+        for ( var i = 0, l = stateSetUniformMapKeys.length; i &lt; l; i++ ) {
+            var key = stateSetUniformMapKeys[ i ];
+            var uniformPair = stateSetUniformMap[ key ];
+            uniform = uniformPair.getUniform();
+            name = uniform.getName();
+            if ( !uniformMap[ name ] ) {
+                this._createAttributeStack( uniformMap, name, uniform );
+            }
+
+            this.pushCheckOverride( uniformMap[ name ], uniform, uniformPair.getValue() );
+        }
+        /*jshint bitwise: true */
+    },
+
+    popUniformsList: function ( uniformMap, stateSetUniformMap ) {
+
+        var stateSetUniformMapKeys = stateSetUniformMap.getKeys();
+
+        for ( var i = 0, l = stateSetUniformMapKeys.length; i &lt; l; i++ ) {
+            var key = stateSetUniformMapKeys[ i ];
+            uniformMap[ key ].pop();
+        }
+    },
+
+
+    // this funtion must called only if stack has changed
+    // check applyTextureAttributeMapList
+    _applyTextureAttributeStack: function ( gl, textureUnit, attributeStack ) {
+
+        var attribute;
+        if ( attributeStack.values().length === 0 ) {
+            attribute = attributeStack.globalDefault;
+        } else {
+            attribute = attributeStack.back().object;
+        }
+
+        // if the the stack has changed but the last applied attribute is the same
+        // then we dont need to apply it again
+        if ( attributeStack.lastApplied !== attribute ) {
+
+            gl.activeTexture( gl.TEXTURE0 + textureUnit );
+            attribute.apply( this, textureUnit );
+
+            attributeStack.lastApplied = attribute;
+        }
+
+        attributeStack.asChanged = false;
+    },
+
+    applyTextureAttributeMapList: function ( textureAttributesMapList ) {
+        var gl = this._graphicContext;
+        var textureAttributeMap;
+
+        for ( var textureUnit = 0, l = textureAttributesMapList.length; textureUnit &lt; l; textureUnit++ ) {
+            textureAttributeMap = textureAttributesMapList[ textureUnit ];
+            if ( !textureAttributeMap ) {
+                continue;
+            }
+
+
+            var textureAttributeMapKeys = textureAttributeMap.getKeys();
+
+            for ( var i = 0, lt = textureAttributeMapKeys.length; i &lt; lt; i++ ) {
+                var key = textureAttributeMapKeys[ i ];
+
+                var attributeStack = textureAttributeMap[ key ];
+
+                // skip if not stack or not changed in stack
+                if ( !attributeStack || !attributeStack.asChanged ) continue;
+
+                this._applyTextureAttributeStack( gl, textureUnit, attributeStack );
+                // var attribute;
+                // if ( attributeStack.values().length === 0 ) {
+                //     attribute = attributeStack.globalDefault;
+                // } else {
+                //     attribute = attributeStack.back().object;
+                // }
+                // if ( attributeStack.asChanged ) {
+
+                //     gl.activeTexture( gl.TEXTURE0 + textureUnit );
+                //     attribute.apply( this, textureUnit );
+                //     attributeStack.lastApplied = attribute;
+                //     attributeStack.asChanged = false;
+
+                // }
+            }
+        }
+    },
+
+    setGlobalDefaultValue: function ( attribute ) {
+        Notify.log( &#039;setGlobalDefaultValue is deprecated, use instead setGlobalDefaultAttribute&#039; );
+        this.setGlobalDefaultAttribute( attribute );
+    },
+
+    setGlobalDefaultAttribute: function ( attribute ) {
+        var typeMember = attribute.getTypeMember();
+        var attributeMap = this.attributeMap;
+
+        if ( attributeMap[ typeMember ] === undefined ) {
+            this._createAttributeStack( attributeMap, typeMember, attribute );
+        } else {
+            attributeMap[ typeMember ].globalDefault = attribute;
+        }
+    },
+
+    getGlobalDefaultAttribute: function ( typeMember ) {
+        var attributeMap = this.attributeMap;
+        if ( attributeMap[ typeMember ] === undefined ) return undefined;
+
+        return attributeMap[ typeMember ].globalDefault;
+    },
+
+    setGlobalDefaultTextureAttribute: function ( unit, attribute ) {
+        var attributeMap = this.getOrCreateTextureAttributeMap( unit );
+
+        var typeMember = attribute.getTypeMember();
+
+        if ( attributeMap[ typeMember ] === undefined ) {
+            this._createAttributeStack( attributeMap, typeMember, attribute );
+        } else {
+            attributeMap[ typeMember ].globalDefault = attribute;
+        }
+
+    },
+
+    getGlobalDefaultTextureAttribute: function ( unit, typeMember ) {
+        var attributeMap = this.getOrCreateTextureAttributeMap( unit );
+        var as = attributeMap[ typeMember ];
+        return as.globalDefault;
+    },
+
+    getOrCreateTextureAttributeMap: function ( unit ) {
+        if ( !this.textureAttributeMapList[ unit ] ) this.textureAttributeMapList[ unit ] = new Map();
+        return this.textureAttributeMapList[ unit ];
+    },
+
+    pushAttributeMap: function ( attributeMap, stateSetAttributeMap ) {
+        /*jshint bitwise: false */
+        var attributeStack;
+        var stateSetAttributeMapKeys = stateSetAttributeMap.getKeys();
+
+        for ( var i = 0, l = stateSetAttributeMapKeys.length; i &lt; l; i++ ) {
+
+            var type = stateSetAttributeMapKeys[ i ];
+            var attributePair = stateSetAttributeMap[ type ];
+            var attribute = attributePair.getAttribute();
+
+            if ( attributeMap[ type ] === undefined ) {
+                this._createAttributeStack( attributeMap, type, attribute.cloneType() );
+            }
+
+            attributeStack = attributeMap[ type ];
+            this.pushCheckOverride( attributeStack, attribute, attributePair.getValue() );
+            attributeStack.asChanged = true;
+        }
+        /*jshint bitwise: true */
+    },
+
+    popAttributeMap: function ( attributeMap, stateSetAttributeMap ) {
+
+        var attributeStack;
+        var stateSetAttributeMapKeys = stateSetAttributeMap.getKeys();
+
+        for ( var i = 0, l = stateSetAttributeMapKeys.length; i &lt; l; i++ ) {
+
+            var type = stateSetAttributeMapKeys[ i ];
+            attributeStack = attributeMap[ type ];
+            attributeStack.pop();
+            attributeStack.asChanged = true;
+
+        }
+    },
+
+    setIndexArray: function ( array ) {
+
+        var gl = this._graphicContext;
+
+        if ( this._currentIndexVBO !== array ) {
+            array.bind( gl );
+            this._currentIndexVBO = array;
+        }
+
+        if ( array.isDirty() ) {
+            array.compile( gl );
+        }
+
+    },
+
+    lazyDisablingOfVertexAttributes: function () {
+        var keys = this.vertexAttribMap._keys;
+        for ( var i = 0, l = keys.length; i &lt; l; i++ ) {
+            var attr = keys[ i ];
+            if ( this.vertexAttribMap[ attr ] ) {
+                this.vertexAttribMap._disable[ attr ] = true;
+            }
+        }
+    },
+
+    enableVertexColor: function () {
+
+        var program = this.attributeMap.Program.lastApplied;
+
+        if ( !program.getUniformsCache().ArrayColorEnabled ||
+            !program.getAttributesCache().Color ) return; // no color uniform or attribute used, exit
+
+        // update uniform
+        var uniform = this.uniforms.ArrayColorEnabled.globalDefault;
+
+        var previousColorEnabled = this._previousColorAttribPair[ program.getInstanceID() ];
+
+        if ( !previousColorEnabled ) {
+            uniform.setFloat( 1.0 );
+            uniform.apply( this.getGraphicContext(), program.getUniformsCache().ArrayColorEnabled );
+            this._previousColorAttribPair[ program.getInstanceID() ] = true;
+        }
+
+    },
+
+
+    disableVertexColor: function () {
+
+        var program = this.attributeMap.Program.lastApplied;
+
+        if ( !program.getUniformsCache().ArrayColorEnabled ||
+            !program.getAttributesCache().Color ) return; // no color uniform or attribute used, exit
+
+        // update uniform
+        var uniform = this.uniforms.ArrayColorEnabled.globalDefault;
+
+        var previousColorEnabled = this._previousColorAttribPair[ program.getInstanceID() ];
+
+        if ( previousColorEnabled ) {
+            uniform.setFloat( 0.0 );
+            uniform.apply( this.getGraphicContext(), program.getUniformsCache().ArrayColorEnabled );
+            this._previousColorAttribPair[ program.getInstanceID() ] = false;
+        }
+
+    },
+
+
+    applyDisablingOfVertexAttributes: function () {
+
+        var keys = this.vertexAttribMap._keys;
+        for ( var i = 0, l = keys.length; i &lt; l; i++ ) {
+            if ( this.vertexAttribMap._disable[ keys[ i ] ] === true ) {
+                var attr = keys[ i ];
+                this._graphicContext.disableVertexAttribArray( attr );
+                this.vertexAttribMap._disable[ attr ] = false;
+                this.vertexAttribMap[ attr ] = false;
+            }
+        }
+    },
+
+    clearVertexAttribCache: function () {
+
+        var vertexAttribMap = this.vertexAttribMap;
+        var keys = vertexAttribMap._keys;
+        for ( var i = 0, l = keys.length; i &lt; l; i++ ) {
+            var attr = keys[ i ];
+            vertexAttribMap[ attr ] = undefined;
+            vertexAttribMap._disable[ attr ] = false;
+        }
+
+        this.vertexAttribMap._disable.length = 0;
+        this.vertexAttribMap._keys.length = 0;
+
+    },
+
+    /**
+     *  set a vertex array object.
+     *  return true if binded the vao and false
+     *  if was already binded
+     */
+    setVertexArrayObject: function ( vao ) {
+
+        if ( this._currentVAO !== vao ) {
+
+            this._extVAO.bindVertexArrayOES( vao );
+            this._currentVAO = vao;
+
+            // disable cache to force a re enable of array
+            if ( !vao ) this.clearVertexAttribCache();
+
+            // disable currentIndexVBO to force to bind indexArray from Geometry
+            // if there is a change of vao
+            this._currentIndexVBO = undefined;
+
+            return true;
+        }
+        return false;
+    },
+
+    setVertexAttribArray: function ( attrib, array, normalize ) {
+
+        var vertexAttribMap = this.vertexAttribMap;
+        vertexAttribMap._disable[ attrib ] = false;
+        var gl = this._graphicContext;
+        var binded = false;
+
+        if ( array.isDirty() ) {
+            array.bind( gl );
+            array.compile( gl );
+            binded = true;
+        }
+
+        var currentArray = vertexAttribMap[ attrib ];
+        if ( currentArray !== array ) {
+
+            if ( !binded ) {
+                array.bind( gl );
+            }
+
+            if ( !currentArray ) {
+                gl.enableVertexAttribArray( attrib );
+
+                // can be === false (so undefined check is important)
+                if ( currentArray === undefined )
+                    vertexAttribMap._keys.push( attrib );
+
+            }
+
+            vertexAttribMap[ attrib ] = array;
+            gl.vertexAttribPointer( attrib, array.getItemSize(), array.getType(), normalize, 0, 0 );
+        }
+    },
+
+
+    _getActiveUniformsFromProgramAttributes: function ( program, activeUniformsList ) {
+
+        var attributeMapStack = this.attributeMap;
+
+        var attributeKeys = program.getTrackAttributes().attributeKeys;
+
+        if ( attributeKeys.length &gt; 0 ) {
+
+            for ( var i = 0, l = attributeKeys.length; i &lt; l; i++ ) {
+
+                var key = attributeKeys[ i ];
+                var attributeStack = attributeMapStack[ key ];
+                if ( attributeStack === undefined ) {
+                    continue;
+                }
+
+                // we just need the uniform list and not the attribute itself
+                var attribute = attributeStack.globalDefault;
+                if ( attribute.getOrCreateUniforms === undefined ) {
+                    continue;
+                }
+
+                var uniformMap = attribute.getOrCreateUniforms();
+                var uniformKeys = uniformMap.getKeys();
+
+                for ( var a = 0, b = uniformKeys.length; a &lt; b; a++ ) {
+                    activeUniformsList.push( uniformMap[ uniformKeys[ a ] ] );
+                }
+            }
+
+        }
+    },
+
+    _getActiveUniformsFromProgramTextureAttributes: function ( program, activeUniformsList ) {
+
+        var textureAttributeKeysList = program.getTrackAttributes().textureAttributeKeys;
+        if ( textureAttributeKeysList === undefined ) return;
+
+        for ( var unit = 0, nbUnit = textureAttributeKeysList.length; unit &lt; nbUnit; unit++ ) {
+
+            var textureAttributeKeys = textureAttributeKeysList[ unit ];
+            if ( textureAttributeKeys === undefined ) continue;
+
+            var unitTextureAttributeList = this.textureAttributeMapList[ unit ];
+            if ( unitTextureAttributeList === undefined ) continue;
+
+            for ( var i = 0, l = textureAttributeKeys.length; i &lt; l; i++ ) {
+                var key = textureAttributeKeys[ i ];
+
+                var attributeStack = unitTextureAttributeList[ key ];
+                if ( attributeStack === undefined ) {
+                    continue;
+                }
+                // we just need the uniform list and not the attribute itself
+                var attribute = attributeStack.globalDefault;
+                if ( attribute.getOrCreateUniforms === undefined ) {
+                    continue;
+                }
+                var uniformMap = attribute.getOrCreateUniforms();
+                var uniformMapKeys = uniformMap.getKeys();
+
+                for ( var a = 0, b = uniformMapKeys.length; a &lt; b; a++ ) {
+                    activeUniformsList.push( uniformMap[ uniformMapKeys[ a ] ] );
+                }
+            }
+        }
+    },
+
+    _cacheUniformsForCustomProgram: function ( program, activeUniformsList ) {
+
+        this._getActiveUniformsFromProgramAttributes( program, activeUniformsList );
+
+        this._getActiveUniformsFromProgramTextureAttributes( program, activeUniformsList );
+
+        var gl = this._graphicContext;
+
+        // now we have a list on uniforms we want to track but we will filter them to use only what is needed by our program
+        // not that if you create a uniforms whith the same name of a tracked attribute, and it will override it
+        var uniformsFinal = new Map();
+
+        for ( var i = 0, l = activeUniformsList.length; i &lt; l; i++ ) {
+            var u = activeUniformsList[ i ];
+            var uniformName = u.getName();
+            var loc = gl.getUniformLocation( program._program, uniformName );
+            if ( loc !== undefined &amp;&amp; loc !== null ) {
+                uniformsFinal[ uniformName ] = u;
+            }
+        }
+        uniformsFinal.dirty();
+        program.trackUniforms = uniformsFinal;
+
+    },
+
+    _applyCustomProgramUniforms: ( function () {
+
+        var activeUniformsList = [];
+
+        return function ( program ) {
+
+            // custom program so we will iterate on uniform from the program and apply them
+            // but in order to be able to use Attribute in the state graph we will check if
+            // our program want them. It must be defined by the user
+
+            // first time we see attributes key, so we will keep a list of uniforms from attributes
+            activeUniformsList.length = 0;
+
+            // fill the program with cached active uniforms map from attributes and texture attributes
+            if ( program.getTrackAttributes() !== undefined &amp;&amp; program.trackUniforms === undefined ) {
+                this._cacheUniformsForCustomProgram( program, activeUniformsList );
+            }
+
+            var programUniformMap = program.getUniformsCache();
+            var programUniformKeys = programUniformMap.getKeys();
+            var uniformMapStackContent = this.uniforms;
+
+            var programTrackUniformMap;
+            if ( program.trackUniforms )
+                programTrackUniformMap = program.trackUniforms;
+
+            var uniform;
+            for ( var i = 0, l = programUniformKeys.length; i &lt; l; i++ ) {
+                var uniformKey = programUniformKeys[ i ];
+                var location = programUniformMap[ uniformKey ];
+                var uniformStack = uniformMapStackContent[ uniformKey ];
+
+                if ( uniformStack === undefined ) {
+
+                    if ( programTrackUniformMap !== undefined ) {
+                        uniform = programTrackUniformMap[ uniformKey ];
+                        if ( uniform !== undefined ) {
+                            uniform.apply( this._graphicContext, location );
+                        }
+                    }
+
+                } else {
+
+                    if ( uniformStack.values().length === 0 ) {
+                        uniform = uniformStack.globalDefault;
+                    } else {
+                        uniform = uniformStack.back().object;
+                    }
+                    uniform.apply( this._graphicContext, location );
+
+                }
+            }
+        };
+    } )(),
+
+
+    // apply a generated program if necessary
+    // It build a Shader from the shader generator
+    // it apply for the following condition
+    // the user has not put a Pogram in the stack or if he has he added one with OFF
+    _generateAndApplyProgram: function () {
+
+        var attributeMap = this.attributeMap;
+        if ( attributeMap.Program !== undefined &amp;&amp; attributeMap.Program.values().length !== 0 &amp;&amp; attributeMap.Program.back().value !== StateAttribute.OFF )
+            return undefined;
+
+        // no custom program look into the stack of ShaderGenerator name
+        // what we should use to generate a program
+
+        var last = this._shaderGeneratorNames.back();
+        var shaderGenerator = this._shaderGeneratorProxy.getShaderGenerator( last ? last.object : undefined );
+
+        var program = shaderGenerator.getOrCreateProgram( this );
+        this.applyAttribute( program );
+        return program;
+    },
+
+    _computeForeignUniforms: function ( programUniformMap, activeUniformMap ) {
+
+        var uniformMapKeys = programUniformMap.getKeys();
+        var uniformMap = programUniformMap;
+
+        var foreignUniforms = [];
+        for ( var i = 0, l = uniformMapKeys.length; i &lt; l; i++ ) {
+
+            var name = uniformMapKeys[ i ];
+            var location = uniformMap[ name ];
+
+            if ( location !== undefined &amp;&amp; activeUniformMap[ name ] === undefined ) {
+
+                // filter &#039;standard&#039; uniform matrix that will be applied for all shader
+                if ( name !== this.modelViewMatrix.getName() &amp;&amp;
+                    name !== this.modelWorldMatrix.getName() &amp;&amp;
+                    name !== this.viewMatrix.getName() &amp;&amp;
+                    name !== this.projectionMatrix.getName() &amp;&amp;
+                    name !== this.normalMatrix.getName() &amp;&amp;
+                    name !== &#039;ArrayColorEnabled&#039; ) {
+                    foreignUniforms.push( name );
+                }
+            }
+
+        }
+
+        return foreignUniforms;
+    },
+
+    _removeUniformsNotRequiredByProgram: function ( activeUniformMap, programUniformMap ) {
+
+        var activeUniformMapKeys = activeUniformMap.getKeys();
+
+        for ( var i = 0, l = activeUniformMapKeys.length; i &lt; l; i++ ) {
+            var name = activeUniformMapKeys[ i ];
+            var location = programUniformMap[ name ];
+            if ( location === undefined || location === null ) {
+                delete activeUniformMap[ name ];
+                activeUniformMap.dirty();
+            }
+        }
+    },
+
+
+    _cacheUniformsForGeneratedProgram: function ( program ) {
+
+        var foreignUniforms = this._computeForeignUniforms( program.getUniformsCache(), program.getActiveUniforms() );
+        program.setForeignUniforms( foreignUniforms );
+
+
+        // remove uniforms listed by attributes (getActiveUniforms) but not required by the program
+        this._removeUniformsNotRequiredByProgram( program.getActiveUniforms(), program.getUniformsCache() );
+
+    },
+
+    _applyGeneratedProgramUniforms: function ( program ) {
+
+        // note that about TextureAttribute that need uniform on unit we would need to improve
+        // the current uniformList ...
+
+        // when we apply the shader for the first time, we want to compute the active uniforms for this shader and the list of uniforms not extracted from attributes called foreignUniforms
+
+        // typically the following code will be executed once on the first execution of generated program
+
+        var foreignUniformKeys = program.getForeignUniforms();
+        if ( !foreignUniformKeys ) {
+            this._cacheUniformsForGeneratedProgram( program );
+            foreignUniformKeys = program.getForeignUniforms();
+        }
+
+
+        var programUniformMap = program.getUniformsCache();
+        var activeUniformMap = program.getActiveUniforms();
+
+
+        // apply active uniforms
+        // caching uniforms from attribtues make it impossible to overwrite uniform with a custom uniform instance not used in the attributes
+        var i, l, name, location;
+        var activeUniformKeys = activeUniformMap.getKeys();
+
+        for ( i = 0, l = activeUniformKeys.length; i &lt; l; i++ ) {
+
+            name = activeUniformKeys[ i ];
+            location = programUniformMap[ name ];
+            activeUniformMap[ name ].apply( this._graphicContext, location );
+
+        }
+
+        var uniformMapStack = this.uniforms;
+
+        // apply now foreign uniforms, it&#039;s uniforms needed by the program but not contains in attributes used to generate this program
+        for ( i = 0, l = foreignUniformKeys.length; i &lt; l; i++ ) {
+
+            name = foreignUniformKeys[ i ];
+            var uniformStack = uniformMapStack[ name ];
+            location = programUniformMap[ name ];
+            var uniform;
+            if ( uniformStack !== undefined ) {
+                if ( uniformStack.values().length === 0 ) {
+                    uniform = uniformStack.globalDefault;
+                    Notify.warn( &#039;Uniform Default Not attached to a StateSet in Scene Hierarchy: &#039; + uniformStack.globalDefault.getName() );
+                } else {
+                    uniform = uniformStack.back().object;
+                }
+
+                uniform.apply( this._graphicContext, location );
+            }
+
+        }
+    }
+
+
+} ), &#039;osg&#039;, &#039;State&#039; );
+
+module.exports = State;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

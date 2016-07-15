@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/Composer.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">62.58</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">1600</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">92.75</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">17.91</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Node = require( &#039;osg/Node&#039; );
+var CullFace = require( &#039;osg/CullFace&#039; );
+var Depth = require( &#039;osg/Depth&#039; );
+var Texture = require( &#039;osg/Texture&#039; );
+var Camera = require( &#039;osg/Camera&#039; );
+var FrameBufferObject = require( &#039;osg/FrameBufferObject&#039; );
+var Viewport = require( &#039;osg/Viewport&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var StateSet = require( &#039;osg/StateSet&#039; );
+var Program = require( &#039;osg/Program&#039; );
+var Shader = require( &#039;osg/Shader&#039; );
+var Shape = require( &#039;osg/Shape&#039; );
+var TransformEnums = require( &#039;osg/TransformEnums&#039; );
+var Vec2 = require( &#039;osg/Vec2&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+
+
+/*
+ Composer is an helper to create post fx. The idea is to push one or more textures into a pipe of shader filter.
+
+ how to use it:
+
+ // example how to blur a texture and render it to screen
+ var myTexture; // imagine it&#039;s your texture you want to process
+ var composer = new Composer();
+ composer.addPass(new Composer.Filter.InputTexture(myTexture));
+ composer.addPass(new Composer.Filter.HBlur(5));
+ composer.addPass(new Composer.Filter.VBlur(5));
+ composer.renderToScreen(1200, 900);
+ composer.build(); // if you dont build manually it will be done in the scenegraph while upading
+ rootnode.addChild(composer);
+
+ // now you can imagine to some process and use the result as input texture for a geometry
+ var myTexture; // imagine it&#039;s your texture you want to process
+ var myResultTexture = new Texture(); // imagine it&#039;s your texture you want to process
+ myResultTexture.setTextureSize(1200,900);
+ var composer = new Composer();
+ composer.addPass(new Composer.Filter.InputTexture(myTexture));
+ composer.addPass(new Composer.Filter.HBlur(5));
+ composer.addPass(new Composer.Filter.VBlur(5), resultTexture);
+
+ myGeometry.getStateSet().setTextureAttributeAndModes(0, resultTexture);
+ rootnode.addChild(composer);
+
+ */
+
+var Composer = function () {
+    Node.call( this );
+    this._stack = [];
+    this._renderToScreen = false;
+    this._dirty = false;
+
+    this._textureRTT = [];
+    this._cameraRTT = [];
+
+    var UpdateCallback = function () {
+
+    };
+    UpdateCallback.prototype = {
+        update: function ( node /*, nv */ ) {
+            if ( node.isDirty() ) {
+                node.build();
+            }
+            return true;
+        }
+    };
+    this.setUpdateCallback( new UpdateCallback() );
+    // disable unecessarry drawing/states/check
+    this.getOrCreateStateSet().setAttributeAndModes( new Depth( &#039;DISABLE&#039; ) );
+    this.getOrCreateStateSet().setAttributeAndModes( new CullFace( &#039;BACK&#039; ) );
+};
+
+Composer.prototype = MACROUTILS.objectInherit( Node.prototype, {
+    dirty: function () {
+        for ( var i = 0, l = this._stack.length; i &lt; l; i++ ) {
+            this._stack[ i ].filter.dirty();
+        }
+    },
+
+    // addPass support different signature
+    // addPass(filter) -&gt; the filter will be done on a texture of the same size than the previous pass
+    // addPass(filter, textureWidth, textureHeight) -&gt; the filter will be done on a texture width and height
+    // addPass(filter, texture) -&gt; the filter will be done on the giver texture using its width and height
+    addPass: function ( filter, arg0, arg1 ) {
+
+        var newPass = {};
+        newPass.filter = filter;
+        // when arg0 is a texture
+        // arg1 is the target, can be TEXTURE_2D ( by default ) or
+        // a cubemape&#039;s face like TEXTURE_CUBE_MAP_POSITIVE_X, ...
+        if ( arg0 instanceof Texture ) {
+            newPass.texture = arg0;
+            newPass.textureTarget = arg1 || Texture.TEXTURE_2D;
+        } else if ( arg0 !== undefined &amp;&amp; arg1 !== undefined ) {
+            newPass.width = Math.floor( arg0 );
+            newPass.height = Math.floor( arg1 );
+        }
+
+        this._stack.push( newPass );
+        return newPass.filter;
+    },
+    renderToScreen: function ( w, h ) {
+        this._renderToScreen = true;
+        this._renderToScreenWidth = w;
+        this._renderToScreenHeight = h;
+    },
+    getResultTexture: function () {
+        return this._resultTexture;
+    },
+    isDirty: function () {
+        for ( var i = 0, l = this._stack.length; i &lt; l; i++ ) {
+            if ( this._stack[ i ].filter.isDirty() ) {
+                return true;
+            }
+        }
+        return false;
+    },
+
+    /*develblock:start*/
+    // debug only check for specific bad condition:
+    // in webgl 1.0 you cannot read and write on the same texture
+    // so you shouldn&#039;t bind a FOB texture as input and output
+    debugCheckRttNotReadWrite: function ( textureResult, stateSet ) {
+
+        for ( var k = 0, lt = stateSet.getNumTextureAttributeLists(); k &lt; lt; k++ ) {
+            var textureBinded = stateSet.getTextureAttribute( k, &#039;Texture&#039; );
+            Notify.assert( textureResult !== textureBinded, &#039;Composer: write/read at the same time on a texture is undefined behavior&#039; );
+
+        }
+    },
+    /*develblock:end*/
+
+    build: function () {
+
+        var self = this;
+
+        // keep some references
+        // TODO: use for reuse/cache/invalidation
+        self._textureRTT = [];
+        self._cameraRTT = [];
+
+
+        this.removeChildren();
+        var lastTextureResult;
+
+        this._stack.forEach( function ( element, i, array ) {
+
+            // update filter internal due to user change on filter
+            if ( element.filter.isDirty() ) {
+                element.filter.build();
+            }
+
+            // this filter need a special setup that composer build cannot do
+            if ( element.filter.interConnectFilters ) {
+                lastTextureResult = element.filter.interConnectFilters( self, i, array );
+                // goto next filter directly
+                return;
+            }
+
+            var stateSet = element.filter.getStateSet();
+            var w, h;
+
+            // compute filter render texture size
+            if ( element.texture !== undefined ) {
+
+                w = element.texture.getWidth();
+                h = element.texture.getHeight();
+
+            } else if ( element.width !== undefined &amp;&amp; element.height !== undefined ) {
+
+                w = element.width;
+                h = element.height;
+
+            } else {
+
+                // get width from Texture0
+                var inputTexture = stateSet.getTextureAttribute( 0, &#039;Texture&#039; );
+                if ( inputTexture === undefined ) {
+                    Notify.warn( &#039;Composer can\&#039;t find any information to setup texture output size&#039; );
+                } else {
+                    w = inputTexture.getWidth();
+                    h = inputTexture.getHeight();
+                }
+            }
+
+            // is it the last filter and we want to render to screen ?
+            var lastFilterRenderToScreen = ( i === array.length - 1 &amp;&amp;
+                self._renderToScreen === true );
+
+            // check if we have something to do
+            // else we will just translate stateset to the next filter
+            // this part exist to manage the Composer.Filter.InputTexture that setup the first texture unit
+            if ( !lastFilterRenderToScreen ) {
+                if ( stateSet.getAttribute( &#039;Program&#039; ) === undefined ) {
+                    array[ i + 1 ].filter.getStateSet().setTextureAttributeAndModes( 0, stateSet.getTextureAttribute( 0, &#039;Texture&#039; ) );
+                    return;
+                }
+            }
+
+            // build the filter into a Camera and a StateSet
+            var camera = new Camera();
+            self._cameraRTT.push( camera );
+            camera.setStateSet( stateSet );
+
+
+            var textureResult;
+            // check if we want to render on screen
+            if ( lastFilterRenderToScreen === true ) {
+                w = self._renderToScreenWidth;
+                h = self._renderToScreenHeight;
+            } else {
+                // Or in a offscreen Framebuffer
+                camera.setRenderOrder( Camera.PRE_RENDER, 0 );
+                textureResult = element.texture;
+                var textureTarget = element.textureTarget;
+                // if no user provided render target texture, create one
+                if ( textureResult === undefined ) {
+                    textureResult = new Texture();
+                    textureResult.setName( &#039;composer Rtt &#039; + element.filter.getFragmentName() );
+                    textureResult.setTextureSize( w, h );
+                    textureTarget = Texture.TEXTURE_2D;
+                    self._textureRTT.push( textureResult );
+                }
+                // Attach the render texture target as FBO
+                // Note: node depth attachment because we&#039;re in 2D
+                camera.attachTexture( FrameBufferObject.COLOR_ATTACHMENT0, textureResult, textureTarget );
+            }
+
+            var vp = new Viewport( 0, 0, w, h );
+            camera.setReferenceFrame( TransformEnums.ABSOLUTE_RF );
+            camera.setViewport( vp );
+
+            // FIXME: not really useful, but osgjs keep pushing projection matrix
+            // and maybe some old code still use it
+            Matrix.makeOrtho( 0, 1, 0, 1, -5, 5, camera.getProjectionMatrix() );
+
+            var quad = Shape.createTexturedFullScreenFakeQuadGeometry();
+
+            if ( element.filter.buildGeometry )
+                quad = element.filter.buildGeometry( quad );
+
+            quad.setName( &#039;composer layer&#039; );
+
+            // if rendering into texture framebuffer
+            if ( textureResult ) {
+
+                /*develblock:start*/
+                self.debugCheckRttNotReadWrite( textureResult, stateSet );
+                /*develblock:end*/
+
+                // assign the result texture to the next stateset
+                if ( i + 1 &lt; array.length ) {
+                    array[ i + 1 ].filter.getStateSet().setTextureAttributeAndModes( 0, textureResult );
+                }
+
+            }
+            lastTextureResult = textureResult;
+
+
+            camera.addChild( quad );
+            element.filter.getStateSet().addUniform( Uniform.createFloat2( Vec2.createAndSet( w, h ), &#039;RenderSize&#039; ) );
+
+            // Optimization, no need to clear,
+            // unless we know we&#039;ll have transparent parts
+            // which is a special case rather than the default
+            camera.setClearMask( 0 );
+
+
+            camera.setName( &#039;Composer Pass&#039; + i );
+            // add to composer
+            self.addChild( camera );
+        } );
+        // reference to the resulting texture
+        // undefined if rendering directly to screen
+        this._resultTexture = lastTextureResult;
+    }
+} );
+
+Composer.Filter = function () {
+    this._stateSet = new StateSet();
+    this._dirty = true;
+    this._fragmentName = &#039;FilterOSGJS&#039;;
+    this._vertexName = &#039;&#039;;
+};
+
+Composer.Filter.prototype = {
+    setFragmentName: function ( fname ) {
+        this._fragmentName = fname;
+    },
+    getFragmentName: function () {
+        return this._fragmentName;
+    },
+    setVertexName: function ( vname ) {
+        this._vertexName = vname;
+    },
+    getVertexName: function () {
+        return this._vertexName;
+    },
+    getDefineFragmentName: function () {
+        return &#039;\n#define SHADER_NAME &#039; + this._fragmentName + &#039;\n&#039;;
+    },
+    getDefineVertexName: function () {
+        return &#039;\n#define SHADER_NAME &#039; + ( this._vertexName || this._fragmentName ) + &#039;\n&#039;;
+    },
+    getStateSet: function () {
+        return this._stateSet;
+    },
+    getOrCreateStateSet: function () {
+        return this._stateSet;
+    },
+    dirty: function () {
+        this._dirty = true;
+    },
+    isDirty: function () {
+        return this._dirty;
+    }
+};
+
+// default means you do use the special optimized full screen triangle
+// dubbed fakeFullscreenQuad
+// no need of modelView, projection, nor texcoord
+Composer.Filter.defaultVertexShader = [
+    &#039;attribute vec3 Vertex;&#039;,
+    &#039;varying vec2 FragTexCoord0;&#039;,
+    &#039;void main(void) {&#039;,
+    &#039;  gl_Position = vec4(Vertex*2.0 - 1.0,1.0);&#039;,
+    &#039;  FragTexCoord0 = Vertex.xy;&#039;,
+    &#039;}&#039;,
+    &#039;&#039;
+].join( &#039;\n&#039; );
+Composer.Filter.defaultFragmentShaderHeader = [
+    &#039;#ifdef GL_FRAGMENT_PRECISION_HIGH\n precision highp float;\n #else\n precision mediump float;\n#endif&#039;,
+    &#039;varying vec2 FragTexCoord0;&#039;,
+    &#039;uniform vec2 RenderSize;&#039;,
+    &#039;uniform sampler2D Texture0;&#039;,
+    &#039;&#039;
+].join( &#039;\n&#039; );
+
+Composer.Filter.shaderUtils = [
+    &#039;vec4 packFloatTo4x8(in float v) {&#039;,
+    &#039;vec4 enc = vec4(1.0, 255.0, 65025.0, 160581375.0) * v;&#039;,
+    &#039;enc = fract(enc);&#039;,
+    &#039;enc -= enc.yzww * vec4(1.0/255.0,1.0/255.0,1.0/255.0,0.0);&#039;,
+    &#039;return enc;&#039;,
+    &#039;}&#039;,
+
+    &#039; &#039;,
+    &#039;vec4 pack2FloatTo4x8(in vec2 val) {&#039;,
+    &#039; const vec2 bitSh = vec2(256.0, 1.0);&#039;,
+    &#039; const vec2 bitMsk = vec2(0.0, 1.0/256.0);&#039;,
+    &#039; vec2 res1 = fract(val.x * bitSh);&#039;,
+    &#039; res1 -= res1.xx * bitMsk;&#039;,
+    &#039; vec2 res2 = fract(val.y * bitSh);&#039;,
+    &#039; res2 -= res2.xx * bitMsk;&#039;,
+    &#039; return vec4(res1.x,res1.y,res2.x,res2.y);&#039;,
+    &#039;}&#039;,
+    &#039; &#039;,
+    &#039;float unpack4x8ToFloat( vec4 rgba ) {&#039;,
+    &#039; return dot( rgba, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/160581375.0) );&#039;,
+    &#039;}&#039;,
+    &#039; &#039;,
+    &#039;vec2 unpack4x8To2Float(in vec4 val) {&#039;,
+    &#039; const vec2 unshift = vec2(1.0/256.0, 1.0);&#039;,
+    &#039; return vec2(dot(val.xy, unshift), dot(val.zw, unshift));&#039;,
+    &#039;}&#039;,
+
+    &#039;vec2 encodeNormal (vec3 n)&#039;,
+    &#039;{&#039;,
+    &#039;    float f = sqrt(8.0*n.z+8.0);&#039;,
+    &#039;    return n.xy / f + 0.5;&#039;,
+    &#039;}&#039;,
+
+    &#039;vec3 decodeNormal (vec2 enc)&#039;,
+    &#039;{&#039;,
+    &#039;    vec2 fenc = enc*4.0-2.0;&#039;,
+    &#039;    float f = dot(fenc,fenc);&#039;,
+    &#039;    float g = sqrt(1.0-f/4.0);&#039;,
+    &#039;    vec3 n;&#039;,
+    &#039;    n.xy = fenc*g;&#039;,
+    &#039;    n.z = 1.0-f/2.0;&#039;,
+    &#039;    return n;&#039;,
+    &#039;}&#039;,
+    &#039;&#039;
+].join( &#039;\n&#039; );
+
+Composer.Filter.Helper = {
+    pascalCache: [
+        [ 1 ]
+    ],
+    getOrCreatePascalCoefficients: function ( kernelSize ) {
+        kernelSize = kernelSize === undefined ? 5 : Math.min( kernelSize, 128 );
+        var cache = Composer.Filter.Helper.pascalCache;
+        if ( cache[ kernelSize ] )
+            return cache[ kernelSize ];
+        for ( var j = cache.length - 1; j &lt; kernelSize; j++ ) {
+            var currentRow = cache[ j ];
+            var currentRowSize = currentRow.length;
+
+            var nextRow = new Array( currentRowSize );
+            nextRow[ 0 ] = 1.0;
+            nextRow[ currentRowSize ] = 1.0;
+
+            // unnormalized pascal
+            var sum = j === cache.length - 1 ? Math.pow( 2, j ) : 1.0;
+            for ( var p = 0; p &lt; currentRowSize - 1; p++ )
+                nextRow[ p + 1 ] = ( currentRow[ p ] + currentRow[ p + 1 ] ) * sum;
+            // normalized array
+            sum = Math.pow( 2, j + 1 );
+            for ( var k = 0; k &lt; currentRowSize + 1; k++ )
+                nextRow[ k ] /= sum;
+            cache.push( nextRow );
+        }
+        return cache[ kernelSize ];
+    }
+};
+
+Composer.Filter.Custom = function ( fragmentShader, uniforms ) {
+    Composer.Filter.call( this );
+    this._fragmentShader = fragmentShader;
+    this._uniforms = uniforms;
+    this._vertexShader = Composer.Filter.defaultVertexShader;
+};
+
+Composer.Filter.Custom.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    setFragmentShader: function ( f ) {
+        this._fragmentShader = f;
+    },
+    setVertexShader: function ( v ) {
+        this._vertexShader = v;
+    },
+    autoBindFragmentUniformStateSet: function ( stateSet, fragmentShader, uniforms ) {
+
+        var unitIndex = 0;
+
+        // TODO: check if not a better place Utils
+        // and reuse (we already do this in shader)
+        // At least DEFINE the regexp somewhere somehow
+        var r = fragmentShader.match( /uniform\s+\w+\s+\w+/g );
+        if ( !r ) return;
+
+        for ( var i = 0, l = r.length; i &lt; l; i++ ) {
+
+            var match = r[ i ].match( /uniform\s+(\w+)\s+(\w+)/ );
+            var uniformType = match[ 1 ];
+            var uniformName = match[ 2 ];
+            var uniform;
+
+            if ( !uniforms[ uniformName ] ) continue;
+
+            var uniformValue = uniforms[ uniformName ];
+
+            if ( uniformType.search( &#039;sampler&#039; ) !== -1 ) {
+
+                // STRONG IMPLICIT LINKING HERE:
+                // Texture Unit Linked directly to declaration order in fragment Shader
+                stateSet.setTextureAttributeAndModes( unitIndex, uniformValue );
+                uniform = Uniform.createInt1( unitIndex, uniformName );
+                unitIndex++;
+                stateSet.addUniform( uniform );
+
+            } else {
+
+                if ( Uniform.isUniform( uniformValue ) ) {
+                    uniform = uniformValue;
+                } else {
+                    uniform = Uniform[ uniformType ]( uniforms[ uniformName ], uniformName );
+                }
+                stateSet.addUniform( uniform );
+
+            }
+
+        }
+    },
+    build: function () {
+
+        this._program = new Program(
+            new Shader( Shader.VERTEX_SHADER, this._vertexShader + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, this._fragmentShader + this.getDefineFragmentName() ) );
+
+        if ( this._uniforms ) {
+            this.autoBindFragmentUniformStateSet( this._stateSet, this._fragmentShader, this._uniforms );
+        }
+        this._stateSet.setAttributeAndModes( this._program );
+        this._dirty = false;
+
+    }
+} );
+
+
+// filter that switch its render target and its input at each frame
+// allowing to get input for last frame render.
+Composer.Filter.PingPong = function ( cameraRtt0, rtt0, cameraRtt1, rtt1, fragmentShader, uniforms ) {
+    Composer.Filter.Custom.apply( this, [ fragmentShader, uniforms ] );
+
+    this._cameraRtt0 = cameraRtt0;
+    this._rtt0 = rtt0;
+
+    this._cameraRtt1 = cameraRtt1;
+    this._rtt1 = rtt1;
+
+    this._fragmentName = &#039;PingPong&#039;;
+};
+
+Composer.Filter.PingPong.prototype = MACROUTILS.objectInherit( Composer.Filter.Custom.prototype, {
+
+    // Constraints:
+    // - Next Filter: texture unit 0 === rtt0 &amp;&amp; texture unit 1 === rtt1
+    // - Previous Filter: the output of the previous filter if any
+    //      will be binded to texture unit 0 of both camera stateset
+    interConnectFilters: function ( composer, i, array ) {
+
+        var filterStateSet = this.getStateSet();
+
+        var st0 = this._cameraRtt0.getOrCreateStateSet();
+        var st1 = this._cameraRtt1.getOrCreateStateSet();
+
+        // copy filter program and uniforms on the 2 cameras
+        st0.setAttributeAndModes( this._program );
+        st1.setAttributeAndModes( this._program );
+
+        // PingPong filter is a peculiar Filter where user provides the Camera
+        // instead of compose::build creating them, and allowing user to provide
+        // them in the ctor
+        // To make sure we don&#039;t forget any uniform
+        // we make sure to get uniform from the filter itself and the uniform
+        // from the parameters
+        var k, l, keys, unif, uniforms = this.getStateSet().getUniformList();
+        if ( uniforms ) {
+            keys = window.Object.keys( uniforms );
+            for ( k = 0, l = keys.length; k &lt; l; k++ ) {
+                unif = uniforms[ keys[ k ] ].getUniform();
+                st0.addUniform( unif );
+                st1.addUniform( unif );
+            }
+        }
+
+        uniforms = this._uniforms;
+        if ( uniforms ) {
+            keys = window.Object.keys( uniforms );
+            for ( k = 0, l = keys.length; k &lt; l; k++ ) {
+                unif = uniforms[ keys[ k ] ];
+                st0.addUniform( unif );
+                st1.addUniform( unif );
+            }
+        }
+
+
+        var uniformTU0 = Uniform.createInt1( 0, &#039;Texture0&#039; );
+        var uniformTU1 = Uniform.createInt1( 1, &#039;Texture1&#039; );
+
+        st0.addUniform( uniformTU0 );
+        st0.addUniform( uniformTU1 );
+
+        st1.addUniform( uniformTU0 );
+        st1.addUniform( uniformTU1 );
+
+        // copy input on both camera
+        // Composer::Build set the last render into the current filter stateset texture unit 0
+        // we copy that into each camera as Texture unit 0
+        var inputTexture = filterStateSet.getTextureAttribute( 0, &#039;Texture&#039; );
+        st0.setTextureAttributeAndModes( 0, inputTexture );
+        st1.setTextureAttributeAndModes( 0, inputTexture );
+
+        st0.setTextureAttributeAndModes( 1, this._rtt1 );
+        st1.setTextureAttributeAndModes( 1, this._rtt0 );
+
+        // if not the last filter
+        // bind both result to next filter
+        // rtt0 to texture unit 0
+        // rtt0 to texture unit 1
+        if ( i !== array.length - 1 ) {
+
+            // just translate stateset to the next filter
+            var nextSt = array[ i + 1 ].filter.getStateSet();
+
+            nextSt.setTextureAttributeAndModes( 0, this._rtt0 );
+            nextSt.setTextureAttributeAndModes( 1, this._rtt1 );
+
+            nextSt.addUniform( uniformTU0 );
+            nextSt.addUniform( uniformTU1 );
+
+        }
+
+        var quad = Shape.createTexturedFullScreenFakeQuadGeometry();
+
+        if ( this.buildGeometry )
+            quad = this.buildGeometry( quad );
+
+        quad.setName( &#039;composer layer&#039; );
+
+        this._cameraRtt0.addChild( quad );
+        this._cameraRtt1.addChild( quad );
+
+        composer.addChild( this._cameraRtt0 );
+        composer.addChild( this._cameraRtt1 );
+
+        composer._textureRTT.push( this._rtt0 );
+        composer._textureRTT.push( this._rtt1 );
+
+        composer._cameraRTT.push( this._cameraRtt0 );
+        composer._cameraRTT.push( this._cameraRtt1 );
+
+        // hide one of the two pass, as we will render only one each frame
+        this._cameraRtt1.setNodeMask( 0x0 );
+
+        // last texture result, only one possible so the first will do
+        return this._rtt0;
+
+    },
+
+    // PingPong
+    switch: function () {
+
+        var nodeMask0 = this._cameraRtt0.getNodeMask();
+        var nodeMask1 = this._cameraRtt1.getNodeMask();
+
+        this._cameraRtt0.setNodeMask( nodeMask1 );
+        this._cameraRtt1.setNodeMask( nodeMask0 );
+
+    }
+
+} );
+
+Composer.Filter.AverageHBlur = function ( nbSamplesOpt, linear, unpack, pack ) {
+    Composer.Filter.call( this );
+    this._linear = linear !== false;
+    this.setBlurSize( nbSamplesOpt !== undefined ? nbSamplesOpt : 5 );
+    this._unpack = unpack;
+    this._pack = pack;
+    this._pixelSize = 1.0;
+    this._fragmentName = &#039;AverageHBlur&#039; + this._nbSamples;
+};
+
+Composer.Filter.AverageHBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    setBlurSize: function ( nbSamples ) {
+        if ( nbSamples % 2 !== 1 ) {
+            nbSamples += 1;
+        }
+        this._nbSamples = nbSamples;
+        this.dirty();
+    },
+    setPixelSize: function ( value ) {
+        this._pixelSize = value;
+        this.dirty();
+    },
+
+    getUVOffset: function ( value ) {
+        return &#039;vec2(float(&#039; + value + &#039;)/RenderSize[0], 0.0);&#039;;
+    },
+    getShaderBlurKernel: function () {
+        var nbSamples = this._nbSamples;
+
+
+        var kernel = [];
+
+        kernel.push( &#039; pixel = unpack(Texture0, FragTexCoord0 );&#039; );
+        kernel.push( &#039; if (pixel.w == 0.0) { gl_FragColor = pixel; return; }&#039; );
+        kernel.push( &#039; vec2 offset;&#039; );
+        var i;
+        var numTexBlurStep = Math.floor( nbSamples / 2 );
+        if ( numTexBlurStep % 2 !== 0 ) {
+            nbSamples += 1;
+            numTexBlurStep = Math.floor( nbSamples / 2 );
+        }
+        var numFinalSample = numTexBlurStep * 2.0 + 1.0;
+        var weight = 1.0 / numFinalSample;
+        if ( !this._linear ) {
+            for ( i = 0; i &lt; numTexBlurStep; i++ ) {
+                kernel.push( &#039; offset = &#039; + this.getUVOffset( ( i + 1 ) * this._pixelSize ) );
+                kernel.push( &#039; pixel += unpack(Texture0, FragTexCoord0 + offset);&#039; );
+                kernel.push( &#039; pixel += unpack(Texture0, FragTexCoord0 - offset);&#039; );
+            }
+            kernel.push( &#039; pixel *= float(&#039; + weight + &#039;);&#039; );
+
+            //console.log( &#039;N: Sum = &#039; + ( weight + numTexBlurStep * weight * 2 ) );
+            //console.log( &#039;N: nbSample = &#039; + nbSamples + &#039; texBlurStep= &#039; + numTexBlurStep + &#039; finalSample= &#039; + numFinalSample );
+            //console.log( &#039;N: w = &#039; + weight );
+
+        } else {
+            // using bilinear HW to divide texfetch by 2
+            var offset, offsetIdx;
+            var idx = 1;
+            var weightTwo = ( 1.0 - weight ) / ( numTexBlurStep * 2.0 );
+            // first pixel not same weight as others
+            kernel.push( &#039; pixel *= float(&#039; + weight + &#039;);&#039; );
+            kernel.push( &#039; vec4 pixelLin = vec4(0.0);&#039; );
+
+            for ( i = 0; i &lt; numTexBlurStep; i += 2 ) {
+
+                offsetIdx = idx + 0.5; //  ((i*weight + (i+1)*weight)/(weight+weight)) ===  (2i + 1) / 2 = i + 0.5
+                idx += 2;
+                offset = this.getUVOffset( offsetIdx * this._pixelSize );
+
+                kernel.push( &#039; offset = &#039; + offset );
+
+                kernel.push( &#039; pixelLin += unpack(Texture0, FragTexCoord0 + offset);&#039; );
+                kernel.push( &#039; pixelLin += unpack(Texture0, FragTexCoord0 - offset);&#039; );
+            }
+            kernel.push( &#039; pixel += pixelLin * float(&#039; + weightTwo * 2 + &#039;);&#039; );
+
+            //console.log( &#039;L: Sum = &#039; + ( weight + numTexBlurStep * weightTwo * 2 ) );
+            //console.log( &#039;L: nbSample = &#039; + nbSamples + &#039; texBlurStep= &#039; + numTexBlurStep + &#039; finalSample= &#039; + numFinalSample );
+            //console.log( &#039;N: w = &#039; + weight + &#039; numTexBlurStep  &#039; + numTexBlurStep + &#039; * w2 = &#039; + weightTwo );
+
+        }
+        return kernel;
+    },
+    build: function () {
+
+        var tex = this._stateSet.getTextureAttribute( 0, &#039;Texture&#039; );
+        if ( tex &amp;&amp; this._linear ) {
+            tex.setMinFilter( &#039;LINEAR&#039; );
+            tex.setMagFilter( &#039;LINEAR&#039; );
+        } else {
+            this._linear = false;
+        }
+
+        //var nbSamples = this._nbSamples;
+        var vtx = Composer.Filter.defaultVertexShader;
+        var fgt = [
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform float width;&#039;,
+
+            this._unpack || &#039;vec4 unpack(const in sampler2D tex, const in vec2 uv) { return texture2D(tex, uv); }&#039;,
+            this._pack || &#039;vec4 pack(vec4 pix) { return pix; }&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  vec4 pixel;&#039;,
+            this.getShaderBlurKernel().join( &#039;\n&#039; ),
+            &#039;  gl_FragColor = pack(pixel);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        if ( this._stateSet.getUniform( &#039;Texture0&#039; ) === undefined ) {
+            this._stateSet.addUniform( Uniform.createInt1( 0, &#039;Texture0&#039; ) );
+        }
+
+
+        this._stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+
+Composer.Filter.AverageVBlur = function ( nbSamplesOpt, linear, unpack, pack ) {
+    Composer.Filter.AverageHBlur.call( this, nbSamplesOpt, linear, unpack, pack );
+    this._fragmentName = &#039;AverageVBlur&#039; + this._nbSamples;
+};
+Composer.Filter.AverageVBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.AverageHBlur.prototype, {
+    getUVOffset: function ( value ) {
+        return &#039;vec2(0.0, float(&#039; + value + &#039;)/RenderSize[1]);&#039;;
+    }
+} );
+
+Composer.Filter.BilateralHBlur = function ( options, unpack, pack ) {
+    Composer.Filter.call( this );
+
+    if ( options === undefined ) {
+        options = {};
+    }
+
+    var nbSamplesOpt = options.nbSamples;
+    var depthTexture = options.depthTexture;
+    var radius = options.radius;
+
+    this.setBlurSize( nbSamplesOpt !== undefined ? nbSamplesOpt : 5 );
+    this._depthTexture = depthTexture;
+    this._radius = Uniform.createFloat( 1.0, &#039;radius&#039; );
+    this._pixelSize = Uniform.createFloat( 1.0, &#039;pixelSize&#039; );
+    this.setRadius( radius );
+
+    this._unpack = unpack;
+    this._pack = pack;
+    this._fragmentName = &#039;BilateralHBlur&#039; + this._nbSamples;
+};
+
+Composer.Filter.BilateralHBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    setBlurSize: function ( nbSamples ) {
+        if ( nbSamples % 2 !== 1 ) {
+            nbSamples += 1;
+        }
+        //Notify.log(&#039;BlurSize &#039; + nbSamples);
+        this._nbSamples = nbSamples;
+        this.dirty();
+    },
+    setPixelSize: function ( value ) {
+        this._pixelSize.setFloat( value );
+    },
+    setRadius: function ( radius ) {
+        this._radius.setFloat( radius ); // *2.0;
+    },
+    getUVOffset: function ( value ) {
+        return &#039;vec2(0.0, float(&#039; + value + &#039;) * pixelSize )/RenderSize[1];&#039;;
+    },
+    getShaderBlurKernel: function () {
+        var nbSamples = this._nbSamples;
+        var kernel = [];
+        kernel.push( &#039; pixel = unpack(Texture0, FragTexCoord0 );&#039; );
+        kernel.push( &#039; if (pixel.w &lt;= 0.0001) { gl_FragColor = vec4(1.0); return; }&#039; );
+        kernel.push( &#039; vec2 offset, tmpUV;&#039; );
+        kernel.push( &#039; depth = getDepthValue(unpack(Texture1, FragTexCoord0 ));&#039; );
+        for ( var i = 1; i &lt; Math.ceil( nbSamples / 2 ); i++ ) {
+            kernel.push( &#039; offset = &#039; + this.getUVOffset( i ) );
+
+            kernel.push( &#039; tmpUV =  FragTexCoord0 + offset;&#039; );
+            kernel.push( &#039; tmpDepth = getDepthValue(unpack(Texture1, tmpUV ));&#039; );
+            kernel.push( &#039; if ( abs(depth-tmpDepth) &lt; radius) {&#039; );
+            kernel.push( &#039;   pixel += unpack(Texture0, tmpUV);&#039; );
+            kernel.push( &#039;   nbHits += 1.0;&#039; );
+            kernel.push( &#039; }&#039; );
+
+            kernel.push( &#039; tmpUV =  FragTexCoord0 - offset;&#039; );
+            kernel.push( &#039; tmpDepth = getDepthValue(unpack(Texture1, tmpUV ));&#039; );
+            kernel.push( &#039; if ( abs(depth-tmpDepth) &lt; radius) {&#039; );
+            kernel.push( &#039;   pixel += unpack(Texture0, tmpUV);&#039; );
+            kernel.push( &#039;   nbHits += 1.0;&#039; );
+            kernel.push( &#039; }&#039; );
+        }
+        kernel.push( &#039; pixel /= nbHits;&#039; );
+        return kernel;
+    },
+    build: function () {
+        //var nbSamples = this._nbSamples;
+        var vtx = Composer.Filter.defaultVertexShader;
+        var fgt = [
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform sampler2D Texture1;&#039;,
+            &#039;uniform float width;&#039;,
+            &#039;uniform mat4 projection;&#039;,
+            &#039;uniform float radius;&#039;,
+            &#039;uniform float pixelSize;&#039;,
+
+            this._unpack || &#039;vec4 unpack(const in sampler2D tex, const in vec2 uv) { return texture2D(tex, uv); }&#039;,
+            this._pack || &#039;vec4 pack(vec4 pix) { return pix; }&#039;,
+
+            &#039;float znear,zfar,zrange;&#039;,
+            &#039;&#039;,
+            Composer.Filter.shaderUtils,
+            &#039;&#039;,
+            &#039;float getDepthValue(vec4 v) {&#039;,
+            &#039;  float depth = unpack4x8ToFloat(v);&#039;,
+            &#039;  depth = depth*zrange+znear;&#039;,
+            &#039;  return -depth;&#039;,
+            &#039;}&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  vec4 pixel;&#039;,
+            &#039;  float depth, tmpDepth;&#039;,
+            &#039;  znear = projection[3][2] / (projection[2][2]-1.0);&#039;,
+            &#039;  zfar = projection[3][2] / (projection[2][2]+1.0);&#039;,
+            &#039;  zrange = zfar-znear;&#039;,
+            &#039;  float nbHits = 1.0;&#039;,
+
+            this.getShaderBlurKernel().join( &#039;\n&#039; ),
+            &#039;  gl_FragColor = pack(pixel);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        if ( this._stateSet.getUniform( &#039;Texture0&#039; ) === undefined ) {
+            this._stateSet.addUniform( Uniform.createInt1( 0, &#039;Texture0&#039; ) );
+        }
+        if ( this._stateSet.getUniform( &#039;Texture1&#039; ) === undefined ) {
+            this._stateSet.addUniform( Uniform.createInt1( 1, &#039;Texture1&#039; ) );
+        }
+        this._stateSet.addUniform( this._radius );
+        this._stateSet.addUniform( this._pixelSize );
+        this._stateSet.setTextureAttributeAndModes( 1, this._depthTexture );
+        this._stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+Composer.Filter.BilateralVBlur = function ( options, unpack, pack ) {
+    Composer.Filter.BilateralHBlur.call( this, options, unpack, pack );
+    this._fragmentName = &#039;BilateralVBlur&#039; + this._nbSamples;
+};
+
+Composer.Filter.BilateralVBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.BilateralHBlur.prototype, {
+    getUVOffset: function ( value ) {
+        return &#039;vec2(float(&#039; + value + &#039;)*pixelSize/RenderSize[0],0.0);&#039;;
+    }
+} );
+
+// InputTexture is a fake filter to setup the first texture
+// in the composer pipeline
+Composer.Filter.InputTexture = function ( texture ) {
+    Composer.Filter.call( this );
+    this._stateSet.setTextureAttributeAndModes( 0, texture );
+    this._fragmentName = &#039;InputTexture&#039;;
+};
+Composer.Filter.InputTexture.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    build: function () {
+        this._dirty = false;
+    }
+} );
+
+// Operate a Gaussian horizontal blur
+Composer.Filter.HBlur = function ( nbSamplesOpt, linear, unpack, pack ) {
+    Composer.Filter.call( this );
+    this._linear = linear !== false;
+    this.setBlurSize( nbSamplesOpt !== undefined ? nbSamplesOpt : 5 );
+    this._unpack = unpack;
+    this._pack = pack;
+    this._fragmentName = &#039;HBlur&#039; + this._nbSamples;
+};
+
+Composer.Filter.HBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    setBlurSize: function ( nbSamples ) {
+        if ( nbSamples % 2 !== 0 ) {
+            nbSamples += 1;
+        }
+        this._nbSamples = nbSamples;
+        this.dirty();
+    },
+    getUVOffset: function ( value ) {
+        // TODO: could compute that in JS and remove 1 div per kernel step
+        return &#039;vec2(float(&#039; + value + &#039;)/ RenderSize[0], 0.0) ;&#039;;
+    },
+    build: function () {
+        var nbSamples = this._nbSamples;
+
+        // TODO: get rendersize from that and precompute
+        // offset when possible
+        var tex = this._stateSet.getTextureAttribute( 0, &#039;Texture&#039; );
+        if ( tex &amp;&amp; this._linear ) {
+            tex.setMinFilter( &#039;LINEAR&#039; );
+            tex.setMagFilter( &#039;LINEAR&#039; );
+        } else {
+            this._linear = false;
+        }
+
+        var vtx = Composer.Filter.defaultVertexShader;
+
+
+        // http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
+        // outermost are near 0, so unless float buffer...
+        // at samples = 6 already it&#039;s 1/32 = 0.03
+        // so we lessen texFetch (allow higher kernel size with less texfetch)
+        var weightMin = 0.005 / nbSamples;
+        var coeffIdx = nbSamples;
+        var weights = Composer.Filter.Helper.getOrCreatePascalCoefficients( coeffIdx );
+        var start = Math.floor( coeffIdx / 2.0 );
+
+        var kernel = [];
+        kernel.push( &#039; pixel = float(&#039; + weights[ start ] + &#039;)*unpack(Texture0, FragTexCoord0 ).rgb;&#039; );
+
+        kernel.push( &#039; vec2 offset;&#039; );
+        var idx, i, weight, offset, offsetIdx;
+        if ( !this._linear ) {
+            idx = 1;
+            for ( i = start + 1; i &lt; nbSamples; i++ ) {
+                weight = weights[ i ];
+
+                if ( weight &lt; weightMin ) break;
+
+                offsetIdx = idx++;
+                offset = this.getUVOffset( offsetIdx );
+
+                kernel.push( &#039; offset = &#039; + offset );
+                kernel.push( &#039; pixel += &#039; + weight + &#039;* unpack(Texture0, (FragTexCoord0.xy + offset.xy)).rgb;&#039; );
+                kernel.push( &#039; pixel += &#039; + weight + &#039;* unpack(Texture0, (FragTexCoord0.xy - offset.xy)).rgb;&#039; );
+            }
+        } else {
+
+            // using bilinear HW to divide texfetch by 2
+            // http://www.rastergrid.com/blog/wp-content/uploads/2010/09/equation.png
+            idx = 1;
+            for ( i = start + 1; i &lt; nbSamples; i += 2 ) {
+                var weightT1 = weights[ i ];
+                var weightT2 = weights[ i + 1 ];
+
+                weight = weightT1 + weightT2;
+
+                if ( weight &lt; weightMin ) break;
+
+                var offsetT1 = idx;
+                var offsetT2 = idx + 1;
+                idx += 2;
+
+                offsetIdx = ( offsetT1 * weightT1 + offsetT2 * weightT2 ) / weight;
+                offset = this.getUVOffset( offsetIdx );
+
+                kernel.push( &#039; offset = &#039; + offset );
+                kernel.push( &#039; pixel += &#039; + weight + &#039;* unpack(Texture0, (FragTexCoord0.xy + offset.xy)).rgb;&#039; );
+                kernel.push( &#039; pixel += &#039; + weight + &#039;* unpack(Texture0, (FragTexCoord0.xy - offset.xy)).rgb;&#039; );
+            }
+        }
+        var fgt = [
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform float width;&#039;,
+
+            this._unpack || &#039;vec4 unpack(const in sampler2D tex, const in vec2 uv) { return texture2D(tex, uv); }&#039;,
+            this._pack || &#039;vec4 pack(vec4 pix) { return pix; }&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  vec3 pixel;&#039;,
+            kernel.join( &#039;\n&#039; ),
+            &#039;  gl_FragColor = pack(vec4(pixel, 1.0));&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        if ( this._stateSet.getUniform( &#039;Texture0&#039; ) === undefined ) {
+            this._stateSet.addUniform( Uniform.createInt1( 0, &#039;Texture0&#039; ) );
+        }
+        this._stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+// Operate a Gaussian vertical blur
+Composer.Filter.VBlur = function ( nbSamplesOpt, linear, unpack, pack ) {
+    Composer.Filter.HBlur.call( this, nbSamplesOpt, linear, unpack, pack );
+    this._fragmentName = &#039;VBlur&#039; + this._nbSamples;
+};
+
+Composer.Filter.VBlur.prototype = MACROUTILS.objectInherit( Composer.Filter.HBlur.prototype, {
+    getUVOffset: function ( value ) {
+        return &#039;vec2(0.0, float(&#039; + value + &#039;)/RenderSize[1]) ;&#039;;
+    }
+} );
+
+// Sobel filter
+// http://en.wikipedia.org/wiki/Sobel_operator
+Composer.Filter.SobelFilter = function () {
+    Composer.Filter.call( this );
+    this._color = Uniform.createFloat3( Vec3.createAndSet( 1.0, 1.0, 1.0 ), &#039;color&#039; );
+    this._factor = Uniform.createFloat( 1.0, &#039;factor&#039; );
+    this._fragmentName = &#039;SobelFilter&#039;;
+};
+
+Composer.Filter.SobelFilter.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    setColor: function ( color ) {
+        this._color.setVec3( color );
+    },
+    setFactor: function ( f ) {
+        this._factor.setFloat( f );
+    },
+    build: function () {
+        var stateSet = this._stateSet;
+        var vtx = Composer.Filter.defaultVertexShader;
+        var fgt = [
+            &#039;&#039;,
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform vec3 color;&#039;,
+            &#039;uniform float factor;&#039;,
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  float fac0 = 2.0;&#039;,
+            &#039;  float fac1 = 1.0;&#039;,
+            &#039;  float offsetx = 1.0/RenderSize[0];&#039;,
+            &#039;  float offsety = 1.0/RenderSize[1];&#039;,
+            &#039;  vec4 texel0 = texture2D(Texture0, FragTexCoord0 + vec2(offsetx, offsety));&#039;,
+            &#039;  vec4 texel1 = texture2D(Texture0, FragTexCoord0 + vec2(offsetx, 0.0));&#039;,
+            &#039;  vec4 texel2 = texture2D(Texture0, FragTexCoord0 + vec2(offsetx, -offsety));&#039;,
+            &#039;  vec4 texel3 = texture2D(Texture0, FragTexCoord0 + vec2(0.0, -offsety));&#039;,
+            &#039;  vec4 texel4 = texture2D(Texture0, FragTexCoord0 + vec2(-offsetx, -offsety));&#039;,
+            &#039;  vec4 texel5 = texture2D(Texture0, FragTexCoord0 + vec2(-offsetx, 0.0));&#039;,
+            &#039;  vec4 texel6 = texture2D(Texture0, FragTexCoord0 + vec2(-offsetx, offsety));&#039;,
+            &#039;  vec4 texel7 = texture2D(Texture0, FragTexCoord0 + vec2(0.0, offsety));&#039;,
+            &#039;  vec4 rowx = -fac0*texel5 + fac0*texel1 +  -fac1*texel6 + fac1*texel0 + -fac1*texel4 + fac1*texel2;&#039;,
+            &#039;  vec4 rowy = -fac0*texel3 + fac0*texel7 +  -fac1*texel4 + fac1*texel6 + -fac1*texel2 + fac1*texel0;&#039;,
+            &#039;  float mag = sqrt(dot(rowy,rowy)+dot(rowx,rowx));&#039;,
+            &#039;  if (mag &lt; 1.0/255.0) discard;&#039;,
+            &#039;  mag *= factor;&#039;,
+            &#039;  mag = min(1.0, mag);&#039;,
+            &#039;  gl_FragColor = vec4(color*mag,mag);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        stateSet.setAttributeAndModes( program );
+        stateSet.addUniform( this._color );
+        stateSet.addUniform( this._factor );
+        stateSet.addUniform( Uniform.createInt1( 0, &#039;Texture0&#039; ) );
+        this._dirty = false;
+    }
+} );
+
+Composer.Filter.BlendMix = function () {
+    Composer.Filter.call( this );
+    var texture0, texture1, mixValue;
+    var unit0 = 0;
+    var unit1 = 1;
+    var stateSet = this._stateSet;
+    if ( arguments.length === 3 ) {
+        texture0 = arguments[ 0 ];
+        texture1 = arguments[ 1 ];
+        mixValue = arguments[ 2 ];
+        unit0 = 1;
+        unit1 = 2;
+        stateSet.setTextureAttributeAndModes( unit0, texture0 );
+    } else if ( arguments.length === 2 ) {
+        texture1 = arguments[ 0 ];
+        mixValue = arguments[ 1 ];
+    } else if ( arguments.length === 1 ) {
+        texture1 = arguments[ 0 ];
+        mixValue = 0.5;
+    }
+    stateSet.setTextureAttributeAndModes( unit1, texture1 );
+    stateSet.addUniform( Uniform.createInt1( unit0, &#039;Texture0&#039; ) );
+    stateSet.addUniform( Uniform.createInt1( unit1, &#039;Texture1&#039; ) );
+    this._mixValueUniform = Uniform.createFloat1( mixValue, &#039;MixValue&#039; );
+    stateSet.addUniform( this._mixValueUniform );
+    this._fragmentName = &#039;BlendMix&#039;;
+};
+
+Composer.Filter.BlendMix.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    getBlendFactorUniform: function () {
+        return this._mixValueUniform;
+    },
+
+    build: function () {
+        var stateSet = this._stateSet;
+        var vtx = Composer.Filter.defaultVertexShader;
+        var fgt = [
+            &#039;&#039;,
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform sampler2D Texture1;&#039;,
+            &#039;uniform float MixValue;&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  gl_FragColor = mix(texture2D(Texture0,FragTexCoord0), texture2D(Texture1,FragTexCoord0),MixValue);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+
+Composer.Filter.BlendMultiply = function () {
+    Composer.Filter.call( this );
+    var stateSet = this._stateSet;
+    var texture0, texture1;
+    var unit0 = 0;
+    var unit1 = 1;
+    if ( arguments.length === 2 ) {
+        texture0 = arguments[ 0 ];
+        texture1 = arguments[ 1 ];
+        unit0 = 1;
+        unit0 = 2;
+        stateSet.setTextureAttributeAndModes( unit0, texture0 );
+    } else if ( arguments.length === 1 ) {
+        texture1 = arguments[ 0 ];
+    }
+    stateSet.setTextureAttributeAndModes( unit1, texture1 );
+    stateSet.addUniform( Uniform.createInt1( unit0, &#039;Texture0&#039; ) );
+    stateSet.addUniform( Uniform.createInt1( unit1, &#039;Texture1&#039; ) );
+    this._fragmentName = &#039;BlendMultiply&#039;;
+};
+
+Composer.Filter.BlendMultiply.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+    build: function () {
+        var vtx = Composer.Filter.defaultVertexShader;
+        var fgt = [
+            &#039;&#039;,
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform sampler2D Texture1;&#039;,
+            &#039;uniform float MixValue;&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            &#039;  gl_FragColor = texture2D(Texture0,FragTexCoord0)*texture2D(Texture1,FragTexCoord0);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vtx + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fgt + this.getDefineFragmentName() ) );
+
+        this._stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+Composer.Filter.SSAO = function ( options ) {
+    Composer.Filter.call( this );
+
+    var stateSet = this._stateSet;
+    var nbSamples = 16;
+    var radius = 0.05;
+    if ( options !== undefined ) {
+        if ( options.nbSamples !== undefined )
+            nbSamples = options.nbSamples;
+
+        if ( options.radius !== undefined )
+            radius = options.radius;
+        var textureNormal = options.normal;
+        var texturePosition = options.position;
+        var w = textureNormal.getWidth();
+        var h = textureNormal.getHeight();
+        this._size = Vec2.createAndSet( w, h );
+
+        stateSet.setTextureAttributeAndModes( 0, textureNormal );
+        stateSet.setTextureAttributeAndModes( 1, texturePosition );
+    }
+
+    this._radius = radius;
+    this._nbSamples = nbSamples;
+    this._noiseTextureSize = 16;
+    this._sceneRadius = 2.0;
+
+    stateSet.addUniform( Uniform.createFloat1( 1.0, &#039;Power&#039; ) );
+    stateSet.addUniform( Uniform.createFloat1( radius, &#039;Radius&#039; ) );
+    stateSet.addUniform( Uniform.createInt1( 0, &#039;Texture0&#039; ) );
+    stateSet.addUniform( Uniform.createInt1( 1, &#039;Texture1&#039; ) );
+    stateSet.addUniform( Uniform.createInt1( 2, &#039;Texture2&#039; ) );
+    stateSet.addUniform( Uniform.createFloat1( 0.1, &#039;AngleLimit&#039; ) );
+
+    this.initNoise();
+    this._fragmentName = &#039;SSAO&#039;;
+};
+
+Composer.Filter.SSAO.prototype = MACROUTILS.objectInherit( Composer.Filter.prototype, {
+
+    initNoise: function () {
+        var sizeNoise = this._noiseTextureSize;
+        var noise = new Array( sizeNoise * sizeNoise * 3 );
+        ( function ( array ) {
+            var n = Vec2.createAndSet( 0.0, 0.0 );
+            for ( var i = 0; i &lt; sizeNoise * sizeNoise; i++ ) {
+                n[ 0 ] = 2.0 * ( Math.random() - 0.5 );
+                n[ 1 ] = 2.0 * ( Math.random() - 0.5 );
+
+                Vec2.normalize( n, n );
+                array[ i * 3 + 0 ] = 255 * ( n[ 0 ] * 0.5 + 0.5 );
+                array[ i * 3 + 1 ] = 255 * ( n[ 1 ] * 0.5 + 0.5 );
+                array[ i * 3 + 2 ] = 255 * 0.5;
+            }
+        } )( noise );
+
+        var noiseTexture = new Texture();
+        noiseTexture.setWrapS( &#039;REPEAT&#039; );
+        noiseTexture.setWrapT( &#039;REPEAT&#039; );
+        noiseTexture.setMinFilter( &#039;NEAREST&#039; );
+        noiseTexture.setMagFilter( &#039;NEAREST&#039; );
+
+        noiseTexture.setTextureSize( sizeNoise, sizeNoise );
+        noiseTexture.setImage( new Uint8Array( noise ), &#039;RGB&#039; );
+        this._noiseTexture = noiseTexture;
+    },
+    setSceneRadius: function ( value ) {
+        this._sceneRadius = value;
+        this.dirty();
+    },
+    setAngleLimit: function ( value ) {
+        var uniform = this._stateSet.getUniform( &#039;AngleLimit&#039; );
+        uniform.setFloat( value );
+    },
+    setNbSamples: function ( value ) {
+        if ( value === this._nbSamples ) {
+            return;
+        }
+        this._nbSamples = Math.floor( value );
+        this.dirty();
+    },
+    setRadius: function ( value ) {
+        var uniform = this._stateSet.getUniform( &#039;Radius&#039; );
+        uniform.setFloat( value );
+    },
+    setPower: function ( value ) {
+        var uniform = this._stateSet.getUniform( &#039;Power&#039; );
+        uniform.setFloat( value );
+    },
+    build: function () {
+        var stateSet = this._stateSet;
+        var nbSamples = this._nbSamples;
+        var kernel = new Array( nbSamples * 4 );
+        ( function ( array ) {
+            var v = Vec3.create();
+            for ( var i = 0; i &lt; nbSamples; i++ ) {
+                v[ 0 ] = 2.0 * ( Math.random() - 0.5 );
+                v[ 1 ] = 2.0 * ( Math.random() - 0.5 );
+                v[ 2 ] = Math.random();
+
+                Vec3.normalize( v, v );
+                var scale = Math.max( i / nbSamples, 0.1 );
+                scale = 0.1 + ( 1.0 - 0.1 ) * ( scale * scale );
+                array[ i * 3 + 0 ] = v[ 0 ];
+                array[ i * 3 + 1 ] = v[ 1 ];
+                array[ i * 3 + 2 ] = v[ 2 ];
+                array[ i * 3 + 3 ] = scale;
+            }
+        } )( kernel );
+
+
+        stateSet.setTextureAttributeAndModes( 2, this._noiseTexture );
+        var uniform = stateSet.getUniform( &#039;noiseSampling&#039; );
+        if ( uniform === undefined ) {
+            uniform = Uniform.createFloat2( Vec2.createAndSet( this._size[ 0 ] / this._noiseTextureSize, this._size[ 1 ] / this._noiseTextureSize ), &#039;noiseSampling&#039; );
+            stateSet.addUniform( uniform );
+        } else {
+            uniform.setVec2( Vec2.createAndSet( this._size[ 0 ] / this._noiseTextureSize, this._size[ 1 ] / this._noiseTextureSize ) );
+        }
+        var vertexShader = [
+            &#039;&#039;,
+            &#039;attribute vec3 Vertex;&#039;,
+            &#039;attribute vec2 TexCoord0;&#039;,
+            &#039;varying vec2 FragTexCoord0;&#039;,
+            &#039;uniform mat4 ModelViewMatrix;&#039;,
+            &#039;uniform mat4 ProjectionMatrix;&#039;,
+            &#039;void main(void) {&#039;,
+            &#039;  gl_Position = ProjectionMatrix * ModelViewMatrix * vec4(Vertex,1.0);&#039;,
+            &#039;  FragTexCoord0 = TexCoord0;&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var kernelglsl = [];
+        for ( var i = 0; i &lt; nbSamples; i++ ) {
+            kernelglsl.push( &#039;kernel[&#039; + i + &#039;] = vec4(&#039; + kernel[ i * 3 ] + &#039;,&#039; + kernel[ i * 3 + 1 ] + &#039;, &#039; + kernel[ i * 3 + 2 ] + &#039;, &#039; + kernel[ i * 3 + 3 ] + &#039;);&#039; );
+        }
+        kernelglsl = kernelglsl.join( &#039;\n&#039; );
+
+        //var ssaoRadiusMin = this._sceneRadius * 0.002;
+        //var ssaoRadiusMax = this._sceneRadius * 0.05;
+        //var ssaoRadiusStep = ( ssaoRadiusMax - ssaoRadiusMin ) / 200.0;
+
+        var fragmentShader = [
+            &#039;&#039;,
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;uniform sampler2D Texture1;&#039;,
+            &#039;uniform sampler2D Texture2;&#039;,
+            &#039;uniform mat4 projection;&#039;,
+            &#039;uniform vec2 noiseSampling;&#039;,
+            &#039;uniform float Power;&#039;, //&#039;+ &#039;{ &#039;min&#039;: 0.1, &#039;max&#039;: 16.0, &#039;step&#039;: 0.1, &#039;value&#039;: 1.0 }&#039;,
+            &#039;uniform float Radius;&#039;, //&#039;+ &#039;{ &#039;min&#039;: &#039; + ssaoRadiusMin +&#039;, &#039;max&#039;: &#039; + ssaoRadiusMax + &#039;, &#039;step&#039;: &#039;+ ssaoRadiusStep + &#039;, &#039;value&#039;: 0.01 }&#039;,
+            &#039;uniform float AngleLimit;&#039;,
+            &#039;#define NB_SAMPLES &#039; + this._nbSamples,
+            &#039;float depth;&#039;,
+            &#039;vec3 normal;&#039;,
+            &#039;vec4 position;&#039;,
+            &#039;vec4 kernel[&#039; + nbSamples + &#039;];&#039;,
+
+
+            &#039;mat3 computeBasis()&#039;,
+            &#039;{&#039;,
+            &#039;  vec2 uvrand = FragTexCoord0*noiseSampling;&#039;,
+            &#039;  vec3 rvec = texture2D(Texture2, uvrand*2.0).xyz*2.0-vec3(1.0);&#039;,
+            &#039;  vec3 tangent = normalize(rvec - normal * dot(rvec, normal));&#039;,
+            &#039;  vec3 bitangent = cross(normal, tangent);&#039;,
+            &#039;  mat3 tbn = mat3(tangent, bitangent, normal);&#039;,
+            &#039;  return tbn;&#039;,
+            &#039;}&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            kernelglsl,
+            &#039;  position = texture2D(Texture1, FragTexCoord0);&#039;,
+            &#039;  vec4 p = texture2D(Texture0, FragTexCoord0);&#039;,
+            &#039;  depth = p.w;&#039;,
+            &#039;  normal = vec3(p);&#039;,
+            &#039;  if ( position.w == 0.0) {&#039;,
+            &#039;     gl_FragColor = vec4(1.0,1.0,1.0,0.0);&#039;,
+            &#039;     return;&#039;,
+            &#039;  }&#039;,
+            &#039;&#039;,
+            &#039; mat3 tbn = computeBasis();&#039;,
+            &#039; float occlusion = 0.0;&#039;,
+            &#039; for (int i = 0; i &lt; NB_SAMPLES; i++) {&#039;,
+            &#039;    vec3 vecKernel = vec3(kernel[i]);&#039;,
+            &#039;    vecKernel[2] = max(AngleLimit,vecKernel[2]);&#039;,
+            &#039;    vec3 sample = tbn * vecKernel;&#039;,
+            &#039;    vec3 dir = sample;&#039;,
+            &#039;    float w = dot(dir, normal);&#039;,
+            &#039;    float dist = 1.0-kernel[i].w;&#039;,
+            &#039;    w *= dist*dist*Power;&#039;,
+            &#039;    sample = dir * float(Radius) + position.xyz;&#039;,
+
+            &#039;    vec4 offset = projection * vec4(sample,1.0);&#039;,
+            &#039;    offset.xy /= offset.w;&#039;,
+            &#039;    offset.xy = offset.xy * 0.5 + 0.5;&#039;,
+
+            &#039;    float sample_depth = texture2D(Texture1, offset.xy).z;&#039;,
+            &#039;    float range_check = abs(sample.z - sample_depth) &lt; float(Radius) ? 1.0 : 0.0;&#039;,
+            &#039;    occlusion += (sample_depth &gt; sample.z ? 1.0 : 0.0) * range_check*w;&#039;,
+
+            &#039; }&#039;,
+            &#039; occlusion = 1.0 - (occlusion / float(NB_SAMPLES));&#039;,
+            &#039; gl_FragColor = vec4(vec3(occlusion),1.0);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vertexShader + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fragmentShader + this.getDefineFragmentName() ) );
+
+        stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+Composer.Filter.SSAO8 = function ( options ) {
+    Composer.Filter.SSAO.call( this, options );
+    this._fragmentName = &#039;SSAO8&#039;;
+};
+
+Composer.Filter.SSAO8.prototype = MACROUTILS.objectInherit( Composer.Filter.SSAO.prototype, {
+    buildGeometry: function ( quad ) {
+        quad.getAttributes().TexCoord1 = this._texCoord1;
+        return quad;
+    },
+    build: function () {
+        var stateSet = this._stateSet;
+        var nbSamples = this._nbSamples;
+        var kernel = new Array( nbSamples * 4 );
+        //var angleLimit = this._angleLimit;
+        ( function ( array ) {
+            var v = Vec3.create();
+            for ( var i = 0; i &lt; nbSamples; i++ ) {
+                v[ 0 ] = 2.0 * ( Math.random() - 0.5 );
+                v[ 1 ] = 2.0 * ( Math.random() - 0.5 );
+                v[ 2 ] = Math.random();
+
+                Vec3.normalize( v, v );
+                var scale = Math.max( i / nbSamples, 0.1 );
+                scale = 0.1 + ( 1.0 - 0.1 ) * ( scale * scale );
+                array[ i * 3 + 0 ] = v[ 0 ];
+                array[ i * 3 + 1 ] = v[ 1 ];
+                array[ i * 3 + 2 ] = v[ 2 ];
+                array[ i * 3 + 3 ] = scale;
+            }
+        } )( kernel );
+
+        //var sizeNoise = this._noiseTextureSize;
+        stateSet.setTextureAttributeAndModes( 2, this._noiseTexture );
+        var uniform = stateSet.getUniform( &#039;noiseSampling&#039; );
+        if ( uniform === undefined ) {
+            uniform = Uniform.createFloat2( Vec2.createAndSet( this._size[ 0 ] / this._noiseTextureSize, this._size[ 1 ] / this._noiseTextureSize ), &#039;noiseSampling&#039; );
+            stateSet.addUniform( uniform );
+        } else {
+            uniform.setVec2( Vec2.createAndSet( this._size[ 0 ] / this._noiseTextureSize, this._size[ 1 ] / this._noiseTextureSize ) );
+        }
+        var vertexShader = [
+            &#039;&#039;,
+            &#039;attribute vec3 Vertex;&#039;,
+            &#039;attribute vec2 TexCoord0;&#039;,
+            &#039;attribute vec3 TexCoord1;&#039;,
+            &#039;varying vec2 FragTexCoord0;&#039;,
+            &#039;varying vec3 FragTexCoord1;&#039;,
+            &#039;uniform mat4 ModelViewMatrix;&#039;,
+            &#039;uniform mat4 ProjectionMatrix;&#039;,
+            &#039;void main(void) {&#039;,
+            &#039;  gl_Position = ProjectionMatrix * ModelViewMatrix * vec4(Vertex,1.0);&#039;,
+            &#039;  FragTexCoord0 = TexCoord0;&#039;,
+            &#039;  FragTexCoord1 = TexCoord1;&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var kernelglsl = [];
+        for ( var i = 0; i &lt; nbSamples; i++ ) {
+            kernelglsl.push( &#039;kernel[&#039; + i + &#039;] = vec4(&#039; + kernel[ i * 3 ] + &#039;,&#039; + kernel[ i * 3 + 1 ] + &#039;, &#039; + kernel[ i * 3 + 2 ] + &#039;, &#039; + kernel[ i * 3 + 3 ] + &#039;);&#039; );
+        }
+        kernelglsl = kernelglsl.join( &#039;\n&#039; );
+
+        //var ssaoRadiusMin = this._sceneRadius * 0.002;
+        //var ssaoRadiusMax = this._sceneRadius * 0.05;
+        //var ssaoRadiusStep = ( ssaoRadiusMax - ssaoRadiusMin ) / 200.0;
+
+        var fragmentShader = [
+            &#039;&#039;,
+            Composer.Filter.defaultFragmentShaderHeader,
+            &#039;varying vec3 FragTexCoord1;&#039;,
+            &#039;uniform sampler2D Texture1;&#039;,
+            &#039;uniform sampler2D Texture2;&#039;,
+            &#039;uniform mat4 projection;&#039;,
+            &#039;uniform vec2 noiseSampling;&#039;,
+            &#039;uniform float Power;&#039;, //&#039;+ &#039;{ &#039;min&#039;: 0.1, &#039;max&#039;: 16.0, &#039;step&#039;: 0.1, &#039;value&#039;: 1.0 }&#039;,
+            &#039;uniform float Radius;&#039;, //&#039;+ &#039;{ &#039;min&#039;: &#039; + ssaoRadiusMin +&#039;, &#039;max&#039;: &#039; + ssaoRadiusMax + &#039;, &#039;step&#039;: &#039;+ ssaoRadiusStep + &#039;, &#039;value&#039;: 0.01 }&#039;,
+            &#039;uniform float AngleLimit;&#039;,
+            &#039;#define NB_SAMPLES &#039; + this._nbSamples,
+            &#039;float depth;&#039;,
+            &#039;float znear, zfar, zrange;&#039;,
+            &#039;vec3 normal;&#039;,
+            &#039;vec3 position;&#039;,
+            &#039;vec4 kernel[&#039; + nbSamples + &#039;];&#039;,
+
+            Composer.Filter.shaderUtils,
+
+            &#039;mat3 computeBasis()&#039;,
+            &#039;{&#039;,
+            &#039;  vec2 uvrand = FragTexCoord0*noiseSampling;&#039;,
+            &#039;  //uvrand = rand(gl_FragCoord.xy);&#039;,
+            &#039;  vec3 rvec = texture2D(Texture2, uvrand*2.0).xyz*2.0-vec3(1.0);&#039;,
+            &#039;  //vec3 rvec = normalize(vec3(uvrand,0.0));&#039;,
+            &#039;  vec3 tangent = normalize(rvec - normal * dot(rvec, normal));&#039;,
+            &#039;  vec3 bitangent = cross(normal, tangent);&#039;,
+            &#039;  mat3 tbn = mat3(tangent, bitangent, normal);&#039;,
+            &#039;  return tbn;&#039;,
+            &#039;}&#039;,
+
+            &#039;float getDepthValue(vec4 v) {&#039;,
+            &#039;  float depth = unpack4x8ToFloat(v);&#039;,
+            &#039;  depth = depth*zrange+znear;&#039;,
+            &#039;  //depth = depth*zrange;&#039;,
+            &#039;  return -depth;&#039;,
+            &#039;}&#039;,
+
+            &#039;void main (void)&#039;,
+            &#039;{&#039;,
+            kernelglsl,
+            &#039;  vec4 p = texture2D(Texture0, FragTexCoord0);&#039;,
+            &#039;  if (dot(p,p) &lt; 0.001) { &#039;,
+            &#039;     gl_FragColor = vec4(1.0,1.0,1.0,0.0);&#039;,
+            &#039;     return;&#039;,
+            &#039;  }&#039;,
+            &#039;  znear = projection[3][2] / (projection[2][2]-1.0);&#039;,
+            &#039;  zfar = projection[3][2] / (projection[2][2]+1.0);&#039;,
+            &#039;  zrange = zfar-znear;&#039;,
+            &#039;  depth = getDepthValue(texture2D(Texture1, FragTexCoord0));&#039;,
+            //B = (A - znear)/(zfar-znear);&#039;,
+            //B = A/(zfar-znear) - znear/(zfar-znear);&#039;,
+            //B+ znear/(zfar-znear) = A/(zfar-znear) ;&#039;,
+            //(zfar-znear)*(B+ znear/(zfar-znear)) = A ;&#039;,
+            //(zfar-znear)*B+ znear = A ;&#039;,
+
+            &#039;  if ( -depth &lt; znear) {&#039;,
+            &#039;     gl_FragColor = vec4(1.0,1.0,1.0,0.0);&#039;,
+            &#039;     return;&#039;,
+            &#039;  }&#039;,
+
+            &#039;  normal = decodeNormal(unpack4x8To2Float(p));&#039;,
+
+            &#039;  position = -FragTexCoord1*depth;&#039;,
+            &#039;  position.z = -position.z;&#039;,
+
+            &#039;&#039;,
+            &#039; mat3 tbn = computeBasis();&#039;,
+            &#039; float occlusion = 0.0;&#039;,
+            &#039; for (int i = 0; i &lt; NB_SAMPLES; i++) {&#039;,
+            &#039;    vec3 vecKernel = vec3(kernel[i]);&#039;,
+            &#039;    vecKernel[2] = max(AngleLimit,vecKernel[2]);&#039;,
+            &#039;    vec3 sample = tbn * vec3(vecKernel);&#039;,
+            &#039;    vec3 dir = sample;&#039;,
+            &#039;    float w = dot(dir, normal);&#039;,
+            &#039;    float dist = 1.0-kernel[i].w;&#039;,
+            &#039;    w *= dist*dist*Power;&#039;,
+            &#039;    sample = dir * float(Radius) + position.xyz;&#039;,
+
+            &#039;    vec4 offset = projection * vec4(sample,1.0);&#039;,
+            &#039;    offset.xy /= offset.w;&#039;,
+            &#039;    offset.xy = offset.xy * 0.5 + 0.5;&#039;,
+
+            &#039;    float sample_depth = getDepthValue(texture2D(Texture1, offset.xy));&#039;,
+            &#039;    float range_check = abs(sample.z - sample_depth) &lt; float(Radius) ? 1.0 : 0.0;&#039;,
+            &#039;    occlusion += (sample_depth &gt; sample.z ? 1.0 : 0.0) * range_check*w;&#039;,
+
+            &#039; }&#039;,
+            &#039; occlusion = 1.0 - (occlusion / float(NB_SAMPLES));&#039;,
+            &#039; gl_FragColor = vec4(vec3(occlusion),1.0);&#039;,
+            &#039;}&#039;,
+            &#039;&#039;
+        ].join( &#039;\n&#039; );
+
+        var program = new Program(
+            new Shader( Shader.VERTEX_SHADER, vertexShader + this.getDefineVertexName() ),
+            new Shader( Shader.FRAGMENT_SHADER, fragmentShader + this.getDefineFragmentName() ) );
+
+        stateSet.setAttributeAndModes( program );
+        this._dirty = false;
+    }
+} );
+
+module.exports = Composer;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

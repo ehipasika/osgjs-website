@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/DisplayNormalVisitor.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">65.45</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">272</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">38.07</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.06</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var Geometry = require( &#039;osg/Geometry&#039; );
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var DrawArrays = require( &#039;osg/DrawArrays&#039; );
+var PrimitiveSet = require( &#039;osg/PrimitiveSet&#039; );
+var StateSet = require( &#039;osg/StateSet&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var Depth = require( &#039;osg/Depth&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var ShaderGenerator = require( &#039;osgShader/ShaderGenerator&#039; );
+var Compiler = require( &#039;osgShader/Compiler&#039; );
+var RigGeometry = require( &#039;osgAnimation/RigGeometry&#039; );
+var MorphGeometry = require( &#039;osgAnimation/MorphGeometry&#039; );
+var UpdateMorph = require( &#039;osgAnimation/UpdateMorph&#039; );
+
+
+////////////////////////
+// COMPILER OFFSET NORMAL
+////////////////////////
+var CompilerOffsetNormal = function () {
+    Compiler.apply( this, arguments );
+    this._isVertexColored = false;
+};
+
+CompilerOffsetNormal.prototype = MACROUTILS.objectInherit( Compiler.prototype, {
+    getFragmentShaderName: function () {
+        return &#039;CompilerOffsetNormal&#039;;
+    },
+    initTextureAttributes: function () {},
+    createFragmentShaderGraph: function () {
+        var frag = this.getNode( &#039;glFragColor&#039; );
+
+        this.getNode( &#039;SetAlpha&#039; ).inputs( {
+            color: this.getOrCreateUniform( &#039;vec3&#039;, &#039;uColorDebug&#039; ),
+            alpha: this.createVariable( &#039;float&#039; ).setValue( &#039;1.0&#039; )
+        } ).outputs( {
+            color: frag
+        } );
+
+        return [ frag ];
+    },
+    _getDirectionVec: function () {
+        return this.getOrCreateNormalAttribute();
+    },
+    getOrCreateVertexAttribute: function () {
+        var vertexOffset = this.getVariable( &#039;vertexOffset&#039; );
+        if ( vertexOffset ) return vertexOffset;
+
+        vertexOffset = this.createVariable( &#039;vec3&#039;, &#039;vertexOffset&#039; );
+
+        // normalize len (divide scale of worldmat, don&#039;t work for non uniform scale, but work enough for debug)
+        var str = &#039;%out = %offset == 1.0 ? %vertex + normalize(%direction.xyz) * %scale / length(%world[0].xyz) : %vertex;&#039;;
+        this.getNode( &#039;InlineCode&#039; ).code( str ).inputs( {
+            offset: this.getOrCreateAttribute( &#039;float&#039;, &#039;Offset&#039; ),
+            direction: this._getDirectionVec(),
+            vertex: Compiler.prototype.getOrCreateVertexAttribute.call( this ),
+            scale: this.getOrCreateUniform( &#039;float&#039;, &#039;uScale&#039; ),
+            world: this.getOrCreateUniform( &#039;mat4&#039;, &#039;ModelWorldMatrix&#039; )
+        } ).outputs( {
+            out: vertexOffset
+        } );
+
+        return vertexOffset;
+    },
+    declareVertexTransforms: Compiler.prototype.declareVertexTransformShadeless
+} );
+
+var ShaderGeneratorCompilerOffsetNormal = function () {
+    ShaderGenerator.apply( this, arguments );
+    this.setShaderCompiler( CompilerOffsetNormal );
+};
+ShaderGeneratorCompilerOffsetNormal.prototype = ShaderGenerator.prototype;
+
+////////////////////////
+// COMPILER OFFSET TANGENT
+////////////////////////
+var CompilerOffsetTangent = function () {
+    CompilerOffsetNormal.apply( this, arguments );
+};
+
+CompilerOffsetTangent.prototype = MACROUTILS.objectInherit( CompilerOffsetNormal.prototype, {
+    getFragmentShaderName: function () {
+        return &#039;CompilerOffsetTangent&#039;;
+    },
+    _getDirectionVec: function () {
+        return this.getOrCreateTangentAttribute();
+    }
+} );
+
+var ShaderGeneratorCompilerOffsetTangent = function () {
+    ShaderGenerator.apply( this, arguments );
+    this.setShaderCompiler( CompilerOffsetTangent );
+};
+ShaderGeneratorCompilerOffsetTangent.prototype = ShaderGenerator.prototype;
+
+////////////////////////
+// DISPLAY NORMAL VISITOR
+////////////////////////
+
+var DisplayNormalVisitor = function () {
+    NodeVisitor.call( this );
+
+    this._unifScale = Uniform.createFloat( 1.0, &#039;uScale&#039; );
+
+    var ns = this._normalStateSet = new StateSet();
+    ns.addUniform( Uniform.createFloat3( Vec3.createAndSet( 1.0, 0.0, 0.0 ), &#039;uColorDebug&#039; ) );
+    ns.addUniform( this._unifScale );
+    ns.setAttributeAndModes( new Depth( Depth.NEVER ) );
+    ns.setShaderGeneratorName( &#039;debugNormal&#039; );
+
+    var ts = this._tangentStateSet = new StateSet();
+    ts.addUniform( Uniform.createFloat3( Vec3.createAndSet( 0.0, 1.0, 0.0 ), &#039;uColorDebug&#039; ) );
+    ts.addUniform( this._unifScale );
+    ts.setAttributeAndModes( new Depth( Depth.NEVER ) );
+    ts.setShaderGeneratorName( &#039;debugTangent&#039; );
+};
+
+DisplayNormalVisitor.CompilerOffsetNormal = CompilerOffsetNormal;
+DisplayNormalVisitor.CompilerOffsetTangent = CompilerOffsetTangent;
+DisplayNormalVisitor.ShaderGeneratorCompilerOffsetNormal = ShaderGeneratorCompilerOffsetNormal;
+DisplayNormalVisitor.ShaderGeneratorCompilerOffsetTangent = ShaderGeneratorCompilerOffsetTangent;
+
+DisplayNormalVisitor.prototype = MACROUTILS.objectInherit( NodeVisitor.prototype, {
+    setScale: function ( scale ) {
+        this._unifScale.setFloat( scale );
+    },
+    setTangentVisibility: function ( bool ) {
+        this._tangentStateSet.setAttributeAndModes( new Depth( bool ? Depth.LESS : Depth.NEVER ) );
+    },
+    setNormalVisibility: function ( bool ) {
+        this._normalStateSet.setAttributeAndModes( new Depth( bool ? Depth.LESS : Depth.NEVER ) );
+    },
+    apply: function ( node ) {
+        var list = node.getUpdateCallbackList();
+        // dirty the UpdateMorph so that they detect the normal/tangent geometry and update the target/weights correctly
+        for ( var i = 0, nbCB = list.length; i &lt; nbCB; ++i ) {
+            if ( list[ i ] instanceof UpdateMorph ) {
+                list[ i ]._isInitialized = false;
+            }
+        }
+
+        if ( node._isVisitedNormalDebug )
+            return;
+
+        node._isVisitedNormalDebug = true;
+
+        if ( node instanceof Geometry === false )
+            return this.traverse( node );
+
+        this._createDebugGeom( node, &#039;Normal&#039;, this._normalStateSet );
+        this._createDebugGeom( node, &#039;Tangent&#039;, this._tangentStateSet );
+    },
+    _createDoubleOffsetArray: function ( nbVertices ) {
+        // 0 means original vertex pos
+        // 1 means offseted vertex
+        var elts = new Float32Array( nbVertices * 2 );
+        for ( var i = 0; i &lt; nbVertices; ++i ) {
+            elts[ i * 2 ] = 1.0;
+        }
+        return new BufferArray( BufferArray.ARRAY_BUFFER, elts, 1 );
+    },
+    _createDoubledBufferArray: function ( bufferArray ) {
+        // in case of morphs
+        if ( bufferArray.getInitialBufferArray )
+            bufferArray = bufferArray.getInitialBufferArray();
+
+        var itemSize = bufferArray.getItemSize();
+        var elements = bufferArray.getElements();
+        var nbElements = elements.length / itemSize;
+
+        var ctor = elements.constructor;
+        var elementsDouble = new ctor( elements.length * 2 );
+        for ( var i = 0; i &lt; nbElements; ++i ) {
+            var iSize = i * itemSize;
+            var iSize2 = iSize * 2;
+
+            for ( var j = 0; j &lt; itemSize; ++j ) {
+                elementsDouble[ iSize2 + j ] = elementsDouble[ iSize2 + j + itemSize ] = elements[ iSize + j ];
+            }
+        }
+
+        return new BufferArray( BufferArray.ARRAY_BUFFER, elementsDouble, itemSize );
+    },
+    _addMorphTargets: function ( originMorph, morph, vecName ) {
+        var targets = morph.getMorphTargets();
+        morph.setName( originMorph.getName() ); // for the UpdateMorph
+
+        var originTargets = originMorph.getMorphTargets();
+        for ( var i = 0, nbTarget = originTargets.length; i &lt; nbTarget; ++i ) {
+            var origTarget = originTargets[ i ];
+            var origAttrs = origTarget.getVertexAttributeList();
+
+            var newTarget = new Geometry();
+            newTarget.setName( origTarget.getName() ); // for the UpdateMorph
+            var newAttrs = newTarget.getVertexAttributeList();
+
+            newAttrs.Vertex = this._createDoubledBufferArray( origAttrs.Vertex );
+            if ( origAttrs[ vecName ] ) newAttrs[ vecName ] = this._createDoubledBufferArray( origAttrs[ vecName ] );
+
+            targets.push( newTarget );
+        }
+
+        morph.mergeChildrenVertexAttributeList();
+        return morph;
+    },
+    _createDebugGeom: function ( node, vecName, stateSet ) {
+        var attrs = node.getAttributes();
+        var dispVec = attrs[ vecName ];
+        if ( !dispVec )
+            return;
+
+        var vertices = attrs.Vertex;
+        if ( !vertices )
+            return;
+
+        var originMorph;
+        if ( node instanceof MorphGeometry ) originMorph = node;
+        else if ( node.getSourceGeometry &amp;&amp; node.getSourceGeometry() instanceof MorphGeometry ) originMorph = node.getSourceGeometry();
+
+        var nbVertices = vertices.getElements().length / vertices.getItemSize();
+
+        // vertex and normals
+        var source = originMorph ? new MorphGeometry() : new Geometry();
+        source.getAttributes().Vertex = this._createDoubledBufferArray( vertices );
+        source.getAttributes().Offset = this._createDoubleOffsetArray( nbVertices );
+        source.getAttributes()[ vecName ] = this._createDoubledBufferArray( dispVec );
+
+        // primitive
+        source.getPrimitives().push( new DrawArrays( PrimitiveSet.LINES, 0, nbVertices * 2 ) );
+
+        if ( originMorph )
+            this._addMorphTargets( originMorph, source, vecName );
+
+        var geom;
+        if ( node instanceof RigGeometry ) {
+
+            var rig = new RigGeometry();
+            rig.setSourceGeometry( source );
+
+            rig.getVertexAttributeList().Bones = this._createDoubledBufferArray( attrs.Bones );
+            rig.getVertexAttributeList().Weights = this._createDoubledBufferArray( attrs.Weights );
+
+            // we can simply share the rig-animated stateSet attributes
+            // (unlike morph, the stateSet and update animation doesn&#039;t operate at per vertex level)
+            rig._rigTransformImplementation = node._rigTransformImplementation;
+            rig._stateSetAnimation = node._stateSetAnimation;
+
+            rig.mergeChildrenData();
+            geom = rig;
+
+        } else {
+            geom = source;
+        }
+
+
+        // add geom to the graph
+        var parents = node.getParents();
+        var nbParents = parents.length;
+        geom._isVisitedNormalDebug = true;
+        geom._isNormalDebug = true;
+        geom.setStateSet( stateSet );
+        for ( var i = 0; i &lt; nbParents; ++i )
+            parents[ i ].addChild( geom );
+
+        return geom;
+    }
+} );
+
+
+module.exports = DisplayNormalVisitor;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

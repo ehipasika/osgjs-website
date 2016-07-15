@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgAnimation/BasicAnimationManager.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">61.37</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">697</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">105.75</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">6.91</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var BaseObject = require( &#039;osg/Object&#039; );
+var Quat = require( &#039;osg/Quat&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Channel = require( &#039;osgAnimation/Channel&#039; );
+var Animation = require( &#039;osgAnimation/Animation&#039; );
+var Interpolator = require( &#039;osgAnimation/Interpolator&#039; );
+var CollectAnimationUpdateCallbackVisitor = require( &#039;osgAnimation/CollectAnimationUpdateCallbackVisitor&#039; );
+var Target = require( &#039;osgAnimation/Target&#039; );
+var UpdateMorph = require( &#039;osgAnimation/UpdateMorph&#039; );
+
+
+var Float = {
+    lerp: function ( t, a, b ) {
+        return a + ( b - a ) * t;
+    },
+    init: function () {
+        return 0.0;
+    },
+    copy: function ( src ) {
+        return src;
+    },
+    create: function () {
+        return 0.0;
+    }
+};
+
+var TypeToSize = [];
+TypeToSize[ Channel.ChannelType.Float ] = 1;
+TypeToSize[ Channel.ChannelType.FloatCubicBezier ] = 1;
+TypeToSize[ Channel.ChannelType.Vec3 ] = 3;
+TypeToSize[ Channel.ChannelType.Vec3CubicBezier ] = 3;
+TypeToSize[ Channel.ChannelType.Quat ] = 4;
+TypeToSize[ Channel.ChannelType.QuatSlerp ] = 4;
+TypeToSize[ Channel.ChannelType.Matrix ] = 16;
+
+
+var ResultType = [];
+ResultType.length = Channel.ChannelType.Count;
+ResultType[ Channel.ChannelType.Vec3 ] = Vec3;
+ResultType[ Channel.ChannelType.Quat ] = Quat;
+ResultType[ Channel.ChannelType.QuatSlerp ] = Quat;
+ResultType[ Channel.ChannelType.Float ] = Float;
+ResultType[ Channel.ChannelType.FloatCubicBezier ] = Float;
+ResultType[ Channel.ChannelType.Vec3CubicBezier ] = Vec3;
+ResultType[ Channel.ChannelType.Matrix ] = Matrix;
+
+/**
+ *  BasicAnimationManager
+ *  @class BasicAnimationManager
+ */
+var BasicAnimationManager = function () {
+    BaseObject.call( this );
+
+    this._simulationTime = 0.0;
+    this._pauseTime = 0.0;
+    this._timeFactor = 1.0;
+    this._startTime = 0.0;
+
+    // contains a map with instance animations
+    this._instanceAnimations = {};
+
+    // animations to start
+    this._startAnimations = {};
+
+    // target contains an array of all target for this manager
+    // index in the array is used as ID
+    // see Animation.createTarget
+    // [
+    //     { id: 0,
+    //       channels: [],
+    //       value: 0.0,
+    //       defaultValue: 0.0,
+    //       type
+    //     },
+    //     ...
+    // ];
+    this._targets = [];
+    this._targetsMap = {};
+
+    // target id with active lists
+    // [
+    //   Vec3: [ targetID0, targetID1 ]
+    //   Quat: [ targetID2, targetID3,  ... ]
+    //   Float: [ ... ]
+    // ]
+    this._targetsByTypes = [];
+    this._targetsByTypes.length = Channel.ChannelType.Count;
+    for ( var i = 0, ni = this._targetsByTypes.length; i &lt; ni; i++ ) {
+        this._targetsByTypes[ i ] = [];
+    }
+
+    // current playing animations
+    this._activeAnimations = {};
+    this._activeAnimationList = [];
+
+    // current actives channels by types
+    //   [ chanel0, channel1, ... ] // Vec3 type
+    //   [ chanel2, channel3, ... ] // Quat type
+    //   [ chanel5, channel6, ... ] // Float type
+    this._activeChannelsByTypes = [];
+    this._activeChannelsByTypes.length = Channel.ChannelType.Count;
+    for ( var j = 0, nj = this._activeChannelsByTypes.length; j &lt; nj; j++ ) {
+        this._activeChannelsByTypes[ j ] = [];
+    }
+
+    // assign all target/channel in animationCallback
+    // then they can read it directly
+    // animation callback to update
+    this._animationsUpdateCallback = {};
+    this._animationsUpdateCallbackArray = [];
+
+    // queue of animations to register
+    this._animationsToRegister = [];
+
+    //Pause status (true / false)
+    this._pause = false;
+
+    this._dirty = false;
+
+    this._seekTime = -1;
+};
+
+BasicAnimationManager.prototype = MACROUTILS.objectInherit( BaseObject.prototype, {
+
+    init: function ( animations ) {
+
+        // reset all
+        this._simulationTime = 0.0;
+        this._pauseTime = 0.0;
+        this._timeFactor = 1.0;
+        this._startTime = 0.0;
+
+        // contains a map with instance animations
+        this._instanceAnimations = {};
+
+        // animations to start
+        this._startAnimations = {};
+
+        this._resetTargets();
+
+        this._activeAnimations = {};
+        this._activeAnimationList.length = 0;
+
+        for ( var i = 0, ni = this._activeChannelsByTypes.length; i &lt; ni; i++ )
+            this._activeChannelsByTypes[ i ].length = 0;
+
+        this._animationsUpdateCallback = {};
+        this._animationsUpdateCallbackArray.length = 0;
+
+        this._pause = false;
+        this._seekTime = -1;
+
+        // add animations
+        this.addAnimations( animations );
+    },
+
+
+    // push all animations into the queue
+    addAnimations: function ( animations ) {
+
+        var instanceAnimationList = this._addAnimation( animations );
+
+        // qeue them to assign target
+        Array.prototype.push.apply( this._animationsToRegister, instanceAnimationList );
+        this._dirty = true;
+        this._registerAnimations();
+    },
+
+
+    update: function ( node, nv ) {
+
+        if ( this._dirty ) {
+            this._findAnimationUpdateCallback( node );
+            this._registerTargetFoundInAnimationCallback();
+            this._registerAnimations();
+        }
+
+        var t = nv.getFrameStamp().getSimulationTime();
+
+        if ( this._seekTime !== -1 )
+            this._pauseTime = -this._seekTime + this._startTime + t;
+        this._seekTime = -1;
+
+        if ( !this._pause ) { // Not in pause
+            this._simulationTime = this._startTime + ( t - this._pauseTime );
+        } else {
+            this._pauseTime = ( t - this._simulationTime + this._startTime );
+        }
+
+        this.updateManager( this._simulationTime * this._timeFactor );
+        return true;
+    },
+
+    updateManager: function ( t ) {
+
+
+        // adds active animations / channels requested
+        //
+        this._processStartAnimation( t );
+
+        var l = Channel.ChannelType.Count;
+        // update all actives channels by type
+        //
+        for ( var i = 0; i &lt; l; i++ ) {
+            var activeChannelType = this._activeChannelsByTypes[ i ];
+            this._updateChannelsType( t, activeChannelType, Interpolator[ i ] );
+        }
+
+        // update targets
+        //
+        for ( var j = 0; j &lt; l; j++ ) {
+            var targetType = this._targetsByTypes[ j ];
+            this._updateTargetType( targetType, ResultType[ j ] );
+        }
+
+
+        // update all animation callback
+        // expect to have UpdateMatrixTransform
+        for ( var k = 0, nk = this._animationsUpdateCallbackArray.length; k &lt; nk; k++ ) {
+            var animCallback = this._animationsUpdateCallbackArray[ k ];
+            animCallback.computeChannels();
+        }
+
+        // check animation finished
+        this._removeFinishedAnimation( t );
+    },
+
+    togglePause: function () { //Pause the manager&#039;s time
+        this._pause = !this._pause;
+        // if we resume an animation we don&#039;t want to move forward the animation
+        if ( !this._pause )
+            this._seekTime = this._simulationTime;
+    },
+
+    getSimulationTime: function () {
+        return this._simulationTime;
+    },
+
+    setSimulationTime: function ( t ) {
+        this._simulationTime = t;
+    },
+
+    setSeekTime: function ( t ) {
+        this._simulationTime = t;
+        this._seekTime = t;
+    },
+
+    stopAnimation: function ( name ) {
+        var activeAnimationList = this._activeAnimationList;
+        for ( var i = 0, nbAnim = activeAnimationList.length; i &lt; nbAnim; ++i ) {
+            if ( activeAnimationList[ i ].name === name ) {
+                this._removeActiveChannels( this._instanceAnimations[ name ] );
+                this._activeAnimations[ name ] = undefined;
+                activeAnimationList.splice( i, 1 );
+                return;
+            }
+        }
+    },
+
+    stopAllAnimation: function () {
+        var activeAnimationList = this._activeAnimationList;
+        for ( var i = 0, nbAnim = activeAnimationList.length; i &lt; nbAnim; ++i ) {
+            var name = activeAnimationList[ i ].name;
+            this._removeActiveChannels( this._instanceAnimations[ name ] );
+            this._activeAnimations[ name ] = undefined;
+        }
+        activeAnimationList.length = 0;
+    },
+
+    setTimeFactor: function ( timeFactor ) {
+        var tf = timeFactor / this._timeFactor;
+        this._startTime += ( this._simulationTime - this._simulationTime * tf ) / tf;
+
+        this._timeFactor = timeFactor;
+
+        if ( this._pause )
+            this._simulationTime += ( this._simulationTime - this._simulationTime * tf ) / tf;
+    },
+
+    getTimeFactor: function () {
+        return this._timeFactor;
+    },
+
+    isPlaying: function ( name ) {
+        if ( this._activeAnimations[ name ] ) return true;
+        return false;
+    },
+
+    // play animation using object as config
+    // {
+    //     name: string,
+    //     priority: 0,
+    //     weight: 1.0,
+    //     loop: true / false
+    // }
+    playAnimationObject: function ( obj ) {
+
+        var anim = this._instanceAnimations[ obj.name ];
+        if ( !anim ) {
+            Notify.info( &#039;no animation &#039; + obj.name + &#039; found&#039; );
+            return;
+        }
+
+        if ( this.isPlaying( obj.name ) ) return;
+
+        anim.priority = ( obj.priority === undefined ) ? 0 : obj.priority;
+        anim.weight = ( obj.weight === undefined ) ? 1.0 : obj.weight;
+        anim.loop = ( obj.loop === undefined ) ? true : obj.loop;
+
+        this._startAnimations[ anim.name ] = anim;
+    },
+
+    // if first argument is an object
+    // playAnimationObject is called instead
+    playAnimation: function ( name, loop, priority, weight ) {
+
+        var animationObject;
+        if ( typeof name === &#039;object&#039; )
+            animationObject = name;
+        else {
+            animationObject = {
+                name: name,
+                priority: priority,
+                weight: weight,
+                loop: loop
+            };
+        }
+
+        return this.playAnimationObject( animationObject );
+    },
+
+    getAnimations: function () {
+        return this._instanceAnimations;
+    },
+
+
+    _registerAnimations: function () {
+
+        if ( !this._targets.length ) return;
+
+        for ( var i = 0, ni = this._animationsToRegister.length; i &lt; ni; i++ ) {
+            var instanceAnimation = this._animationsToRegister[ i ];
+            this._registerInstanceAnimation( instanceAnimation );
+        }
+
+        this._animationsToRegister.length = 0;
+        this._dirty = false;
+    },
+
+    // Register animation
+    //
+    // Register animation list all target from channel in the animations and associate
+    // target found in the scenegraph. If no target are registered animation cant be
+    // registered. In this case animation will be pending and resolved after a visitor
+    // extract target.
+    _registerInstanceAnimation: function ( instanceAnimation ) {
+
+        var instanceChannels = instanceAnimation.channels;
+        for ( var i = 0, ni = instanceChannels.length; i &lt; ni; i++ ) {
+            var instanceChannel = instanceChannels[ i ];
+            var targetName = instanceChannel.channel.target;
+            var name = instanceChannel.channel.name;
+            var uniqueTargetName = targetName + &#039;.&#039; + name;
+
+            // disply a warning if animation has a channel but not target found in the
+            // scene graph. We could probably optimize and removes those channels, but
+            // it must be a user decision in case the user plugin different scene
+            // graph together and target would appear later in the scenegraph
+            if ( !this._targetMap[ uniqueTargetName ] ) {
+                Notify.warn( &#039;registerInstanceAnimation did not find targetName (&#039; + uniqueTargetName + &#039;) in the scene graph&#039; );
+                continue;
+            }
+
+            instanceChannel.targetID = this._targetMap[ uniqueTargetName ].id;
+        }
+        return true;
+    },
+
+    _findAnimationUpdateCallback: function ( node ) {
+        var collector = new CollectAnimationUpdateCallbackVisitor();
+        node.accept( collector );
+        this._animationsUpdateCallback = collector.getAnimationUpdateCallbackMap();
+    },
+
+    // assignTargetToAnimationCallback
+    //
+    // check all animationUpdateCallback collected and try to
+    // assign the channel instance registered in the manager. If a
+    // animationUpdateCallback contains channels not known by the
+    // manager we skip it.  It means that it should be called
+    // after the animations has been registered into the animation
+    // manager
+    _registerTargetFoundInAnimationCallback: function () {
+
+        this._resetTargets();
+
+        var targetID = 0;
+        var targetMap = this._targetMap;
+        var targets = this._targets;
+
+        var registerTarget = function ( uniqueTargetName, target, name ) {
+            if ( !targetMap[ uniqueTargetName ] ) {
+                targetMap[ uniqueTargetName ] = target;
+                // assign an id that will be an index into a array
+                target.id = targetID++;
+                targets.push( target );
+
+                var type = target.type; // split by type
+                this._targetsByTypes[ type ].push( target );
+            } else {
+                // detect differents target instance with same
+                // unique target name. It&#039;s a problem
+                if ( target !== targetMap[ uniqueTargetName ] )
+                    Notify.warn( &#039;detected differents target instance with the same name (&#039; + name + &#039;)&#039; );
+            }
+        }.bind( this );
+
+
+        var target;
+        var name;
+        var uniqueTargetName;
+
+        var animationCallbackMap = this._animationsUpdateCallback;
+        var keys = window.Object.keys( animationCallbackMap );
+        for ( var i = 0, ni = keys.length; i &lt; ni; i++ ) {
+            var key = keys[ i ];
+            var animationCallback = animationCallbackMap[ key ];
+
+            // handle UpdateBone and UpdateMatrixTransform but not stateSet
+            if ( animationCallback.getStackedTransforms &amp;&amp; animationCallback.getStackedTransforms().length ) {
+                this._animationsUpdateCallbackArray.push( animationCallback );
+
+                var stackedTransforms = animationCallback.getStackedTransforms();
+                for ( var j = 0, nj = stackedTransforms.length; j &lt; nj; j++ ) {
+                    var stackedTransform = stackedTransforms[ j ];
+                    target = stackedTransform.getTarget();
+                    name = stackedTransform.getName();
+                    uniqueTargetName = animationCallback.getName() + &#039;.&#039; + name;
+
+                    registerTarget( uniqueTargetName, target, name );
+                }
+            } else if ( animationCallback instanceof UpdateMorph ) {
+                for ( var t = 0, numTarget = animationCallback.getNumTarget(); t &lt; numTarget; t++ ) {
+                    name = animationCallback.getTargetName( t );
+                    uniqueTargetName = name + &#039;.&#039; + t;
+                    target = animationCallback.getTarget( t );
+
+                    registerTarget( uniqueTargetName, target, name );
+                }
+            }
+        }
+    },
+
+    _addAnimation: function ( animations ) {
+
+        var instanceAnimationList = [];
+        for ( var i = 0, ni = animations.length; i &lt; ni; i++ ) {
+
+            var animation = animations[ i ];
+            var animationName = animation.name;
+
+            if ( this._instanceAnimations[ animationName ] )
+                continue;
+
+            var instanceAnimation = Animation.createInstanceAnimation( animation );
+            this._instanceAnimations[ animationName ] = instanceAnimation;
+            instanceAnimationList.push( instanceAnimation );
+        }
+
+        return instanceAnimationList;
+    },
+
+    // add channels from instance animation to the active channels list
+    _addActiveChannels: function ( t, instanceAnimation ) {
+
+        var instanceChannels = instanceAnimation.channels;
+        for ( var i = 0, ni = instanceChannels.length; i &lt; ni; i++ ) {
+            var instanceChannel = instanceChannels[ i ];
+            var type = instanceChannel.channel.type;
+            instanceChannel.t = t; // reset time
+            instanceChannel.instanceAnimation = instanceAnimation; // link with parent animation
+            var targetID = instanceChannel.targetID;
+
+            if ( targetID === Target.InvalidTargetID ) continue;
+
+            this._activeChannelsByTypes[ type ].push( instanceChannel );
+            this._targets[ targetID ].channels.push( instanceChannel );
+        }
+
+    },
+
+    _removeActiveChannels: function ( instanceAnimation ) {
+
+        var instanceChannels = instanceAnimation.channels;
+        for ( var i = 0, ni = instanceChannels.length; i &lt; ni; i++ ) {
+            var instanceChannel = instanceChannels[ i ];
+            var type = instanceChannel.channel.type;
+            var targetID = instanceChannel.targetID;
+
+            if ( targetID === Target.InvalidTargetID ) continue;
+
+            // remove channel instance from targetID channel list
+            var targetChannelsList = this._targets[ targetID ].channels;
+            var index = targetChannelsList.indexOf( instanceChannel );
+            targetChannelsList.splice( index, 1 );
+
+            // remove channel from active channels
+            var channelTypeList = this._activeChannelsByTypes[ type ];
+            var channelIndex = channelTypeList.indexOf( instanceChannel );
+            channelTypeList.splice( channelIndex, 1 );
+        }
+
+    },
+
+    // blend value from each channels for each target
+    // or copy default value if not updated by an active animation
+    _updateTargetType: function ( targetList, operatorType ) {
+
+        for ( var i = 0, ni = targetList.length; i &lt; ni; i++ ) {
+
+            var target = targetList[ i ];
+            var affectedChannels = target.channels;
+            var nbChannels = affectedChannels.length;
+            // note operatorType operations doesn&#039;t always operate on arrays (float)
+            // so we can&#039;t simply assume that target.value is an array so we need
+            // to write &quot;target.value = ...&quot;
+
+            if ( nbChannels === 0 ) { // no blending ?
+                target.value = operatorType.copy( target.defaultValue, target.value );
+
+            } else if ( nbChannels === 1 ) {
+                target.value = operatorType.copy( affectedChannels[ 0 ].value, target.value );
+
+            } else {
+
+                // blend between multiple channels
+                target.value = operatorType.init( target.value );
+                var accumulatedWeight = 0.0;
+
+                // it&#039;s the same as targetOut = (v0 * w0 + v1 * w1 + ...) / (w0 + w1 + ...)
+                for ( var j = 0, nj = affectedChannels.length; j &lt; nj; j++ ) {
+
+                    var achannel = affectedChannels[ j ];
+                    var weight = achannel.weight;
+                    accumulatedWeight += weight;
+                    // avoid divide by zero and useless lerp
+                    if ( accumulatedWeight === 0.0 || weight === 0.0 )
+                        continue;
+
+                    var ratio = weight / accumulatedWeight;
+                    target.value = operatorType.lerp( ratio, target.value, achannel.value, target.value );
+                }
+            }
+        }
+    },
+
+    _updateChannelsType: function ( t, channels, interpolator ) {
+
+        for ( var i = 0, ni = channels.length; i &lt; ni; i++ ) {
+            var channel = channels[ i ];
+            var instanceAnimation = channel.instanceAnimation;
+            var loop = instanceAnimation.loop;
+
+            var tLocal = t - channel.t;
+
+            // handle loop, careful in case animation is one frame
+            if ( loop &amp;&amp; instanceAnimation.duration &gt; 0.0 ) tLocal = tLocal % instanceAnimation.duration;
+
+            interpolator( tLocal + instanceAnimation.firstKeyTime, channel );
+        }
+    },
+
+    _removeFinishedAnimation: function ( t ) {
+
+        var activeAnimationList = this._activeAnimationList;
+
+        var i = 0;
+        while ( i &lt; activeAnimationList.length ) {
+            var instanceAnimation = activeAnimationList[ i ];
+            var name = instanceAnimation.name;
+
+            if ( t &gt; instanceAnimation.end &amp;&amp; instanceAnimation.loop === false ) {
+                this._removeActiveChannels( instanceAnimation );
+                this._activeAnimations[ name ] = undefined;
+                activeAnimationList.splice( i, 1 );
+            } else {
+                i++;
+            }
+        }
+    },
+
+    _addActiveAnimation: function ( t, cmd ) {
+
+        this._activeAnimations[ cmd.name ] = cmd; // set animation in the list of active one
+
+        var instanceAnimation = this._instanceAnimations[ cmd.name ];
+        instanceAnimation.start = t;
+        instanceAnimation.end = t + instanceAnimation.duration;
+        this._addActiveChannels( t, instanceAnimation );
+
+        // keep track of instance animation active in a list
+        this._activeAnimationList.push( instanceAnimation );
+    },
+
+    // execute start animations events
+    // during the updateManager
+    _processStartAnimation: function ( t ) {
+
+        // dont really start animation if we dont have yet targets
+        if ( !this._targets.length ) return;
+
+        var animations = this._startAnimations;
+        var keys = window.Object.keys( animations );
+        for ( var i = 0, ni = keys.length; i &lt; ni; i++ ) {
+            var key = keys[ i ];
+            var cmd = animations[ key ];
+            var name = cmd.name;
+
+            if ( this.isPlaying( name ) )
+                continue;
+
+            this._addActiveAnimation( t, cmd );
+        }
+
+        if ( keys.length ) this._startAnimations = {};
+    },
+
+    _resetTargets: function () {
+
+        this._targetMap = {};
+        this._targets.length = 0;
+
+        for ( var i = 0, ni = this._targetsByTypes.length; i &lt; ni; i++ ) {
+            this._targetsByTypes[ i ].length = 0;
+        }
+
+    },
+
+    setAnimationLerpEndStart: function ( anim, lerpDuration ) {
+        var channels = anim.channels;
+        if ( anim.originalDuration === undefined )
+            anim.originalDuration = anim.duration;
+
+        anim.duration = anim.originalDuration + lerpDuration;
+
+        var firstKey = anim.firstKeyTime;
+        var animDuration = anim.originalDuration;
+
+        for ( var i = 0, nbChannels = channels.length; i &lt; nbChannels; ++i ) {
+            var ch = channels[ i ].channel;
+
+            // compare first and last key and detect if we can loop the channel or not
+            // it uses an arbitrary epsilon
+            if ( Math.abs( ch.start - firstKey ) &gt; 0.01 || Math.abs( ch.duration - animDuration ) &gt; 0.01 )
+                continue;
+
+            // update channel end time
+            if ( ch.originalEnd === undefined )
+                ch.originalEnd = ch.end;
+
+            ch.end = ch.originalEnd + lerpDuration;
+
+            // add or remove additonal key and time
+
+            var sizeElt = TypeToSize[ ch.type ];
+            var size = ch.times.buffer.byteLength / 4;
+
+            // no lerp between end and start
+            if ( lerpDuration === 0.0 ) {
+
+                ch.keys = new Float32Array( ch.keys.buffer, 0, ( size - 1 ) * sizeElt );
+                ch.times = new Float32Array( ch.times.buffer, 0, size - 1 );
+
+            } else {
+
+                // take full size of buffer (with additional keys)
+                ch.keys = new Float32Array( ch.keys.buffer, 0, size * sizeElt );
+                // copy first key
+                var idLast = ( size - 1 ) * sizeElt;
+                for ( var j = 0; j &lt; sizeElt; ++j )
+                    ch.keys[ idLast + j ] = ch.keys[ j ];
+
+                ch.times = new Float32Array( ch.times.buffer, 0, size );
+                ch.times[ size - 1 ] = ch.times[ size - 2 ] + lerpDuration;
+            }
+        }
+    }
+
+} );
+
+BasicAnimationManager.TypeToSize = TypeToSize;
+
+module.exports = BasicAnimationManager;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

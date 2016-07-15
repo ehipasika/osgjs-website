@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShader/ShaderProcessor.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">67.14</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">217</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">40.04</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.29</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var shaderLib = require( &#039;osgShader/shaderLib&#039; );
+var shadowShaderLib = require( &#039;osgShadow/shaderLib&#039; );
+
+
+//     Shader as vert/frag/glsl files Using requirejs text plugin
+//     Preprocess features like:    //
+//     - Handle (recursive) include, avoiding code repeat and help code factorization
+//     - Handle per shader and global define/precision
+
+
+var ShaderProcessor = function ( createInstance ) {
+
+    if ( !createInstance ) {
+        if ( ShaderProcessor.instance ) {
+            return ShaderProcessor.instance;
+        }
+        ShaderProcessor.instance = this;
+    }
+
+    this.addShaders( shaderLib );
+    this.addShaders( shadowShaderLib );
+    return this;
+};
+
+ShaderProcessor.prototype = {
+    _shadersText: {},
+    _shadersList: {},
+    _globalDefaultprecision: &#039;#ifdef GL_FRAGMENT_PRECISION_HIGH\n precision highp float;\n #else\n precision mediump float;\n#endif&#039;,
+    _debugLines: false,
+    _includeR: /#pragma include &quot;([^&quot;]+)&quot;/g,
+    _includeCondR: /#pragma include ([&quot;^+&quot;]?[&quot;\ &quot;[a-zA-Z_0-9](.*)&quot;]*?)/g,
+    _defineR: /\#define\s+([a-zA-Z_0-9]+)/,
+    _precisionR: /precision\s+(high|low|medium)p\s+float/,
+
+
+    // {
+    //     &#039;functions.glsl&#039;: textShaderFunctions,
+    //     &#039;lights.glsl&#039;: textShaderFunctions,
+    //     &#039;textures.glsl&#039;: textShaderFunctions
+    // };
+    addShaders: function ( shaders ) {
+
+        var keys = window.Object.keys( shaders );
+
+        keys.forEach( function ( key ) {
+
+            this._shadersList[ key ] = key;
+            this._shadersText[ key ] = shaders[ key ];
+
+        }, this );
+
+    },
+
+
+    instrumentShaderlines: function ( content, sourceID ) {
+        // TODO instrumentShaderlines
+        // http://immersedcode.org/2012/1/12/random-notes-on-webgl/
+        // one ID per &quot;file&quot;
+        // Each file has its line number starting at 0
+        //   handle include, the do that numbering also in preprocess...
+        // Then on shader error using sourceID and line you can point the correct line...
+        // has to attach that info to osg.shader object.
+        /*
+          var allLines = content.split(&#039;\n&#039;);
+          var i = 0;
+          for (var k = 0; k _&lt; allLines.length; k++) {
+          if (!this._includeR.test(allLines[k])) {
+          allLines[k] = &quot;#line &quot; + (i++) + &quot; &quot; + sourceID + &#039;\n&#039; + allLines[k] ;
+          }
+          }
+          content = allLines.join(&#039;\n&#039;);
+        */
+
+        // seems just  prefixing first line seems ok to help renumbering error mesg
+        return &#039;\n#line &#039; + 0 + &#039; &#039; + sourceID + &#039;\n&#039; + content;
+    },
+
+    getShaderTextPure: function ( shaderName ) {
+
+        var preShader = this._shadersText[ shaderName ];
+
+        if ( !preShader ) {
+            Notify.error( &#039;shader file/text: &#039; + shaderName + &#039; not registered&#039; );
+            preShader = &#039;&#039;;
+        }
+
+        return preShader;
+    },
+
+    getShader: function ( shaderName, defines, extensions, type ) {
+        var shader = this.getShaderTextPure( shaderName );
+        return this.processShader( shader, defines, extensions, type );
+    },
+
+    // recursively  handle #include external glsl
+    // files (for now in the same folder.)
+    preprocess: function ( content, sourceID, includeList, inputsDefines ) {
+        var self = this;
+        return content.replace( this._includeCondR, function ( _, name ) {
+            var includeOpt = name.split( &#039; &#039; );
+            var includeName = includeOpt[ 0 ].replace( /&quot;/g, &#039;&#039; );
+
+            // pure include is
+            // \#pragma include &quot;name&quot;;
+
+            // conditionnal include is name included if _PCF defined
+            // \#pragma include &quot;name&quot; &quot;_PCF&quot;;
+            if ( includeOpt.length &gt; 1 &amp;&amp; inputsDefines ) {
+
+                // some conditions here.
+                // if not defined we do not include
+                var found = false;
+                var defines = inputsDefines.map( function ( defineString ) {
+                    // find &#039;#define&#039;, remove duplicate whitespace, split on space and return the define Text
+                    return self._defineR.test( defineString ) &amp;&amp; defineString.replace( /\s+/g, &#039; &#039; ).split( &#039; &#039; )[ 1 ];
+                } );
+
+                for ( var i = 1; i &lt; includeOpt.length &amp;&amp; !found; i++ ) {
+                    var key = includeOpt[ i ].replace( /&quot;/g, &#039;&#039; );
+                    for ( var k = 0; k &lt; defines.length &amp;&amp; !found; k++ ) {
+
+                        if ( defines[ k ] !== false &amp;&amp; defines[ k ] === key ) {
+                            found = true;
+                            break;
+                        }
+
+                    }
+                }
+                if ( !found )
+                    return &#039;&#039;;
+            }
+
+            // already included
+            if ( includeList.indexOf( includeName ) !== -1 ) return &#039;&#039;;
+            // avoid endless loop, not calling the impure
+            var txt = this.getShaderTextPure( includeName );
+            // make sure it&#039;s not included twice
+            includeList.push( includeName );
+            if ( this._debugLines ) {
+                txt = this.instrumentShaderlines( txt, sourceID );
+            }
+            sourceID++;
+            // to the infinite and beyond !
+            txt = this.preprocess( txt, sourceID, includeList, inputsDefines );
+            return txt;
+        }.bind( this ) );
+
+    },
+
+    //  process a shader and define
+    //  get a full expanded single shader source code
+    //  resolving include dependencies
+    //  adding defines
+    //  adding line instrumenting.
+    processShader: function ( shader, defines, extensions /*, type*/ ) {
+
+        var includeList = [];
+        var preShader = shader;
+        var sourceID = 0;
+        if ( this._debugLines ) {
+            preShader = this.instrumentShaderlines( preShader, sourceID );
+            sourceID++;
+        }
+
+        // removes duplicates
+        if ( defines !== undefined ) {
+            defines = defines.sort().filter( function ( item, pos ) {
+                return !pos || item !== defines[ pos - 1 ];
+            } );
+        }
+        if ( extensions !== undefined ) {
+            extensions = extensions.sort().filter( function ( item, pos ) {
+                return !pos || item !== extensions[ pos - 1 ];
+            } );
+        }
+
+        var postShader = this.preprocess( preShader, sourceID, includeList, defines );
+
+        var prePrend = &#039;&#039;;
+        prePrend += &#039;#version 100\n&#039;; // webgl1  (webgl2 #version 130 ?)
+
+        // then
+        // it&#039;s extensions first
+        // See https://khronos.org/registry/gles/specs/2.0/GLSL_ES_Specification_1.0.17.pdf
+        // p14-15: before any non-processor token
+        // add them
+        if ( extensions !== undefined ) {
+            // could add an extension check support warning there...
+            prePrend += extensions.join( &#039;\n&#039; ) + &#039;\n&#039;;
+        }
+
+        // vertex shader doesn&#039;t need precision, it&#039;s highp per default, enforced per spec
+        // but then not giving precision on uniform/varying might make conflicts arise
+        // between both FS and VS if FS default is mediump !
+        // &amp;&amp; type !== &#039;vertex&#039;
+        if ( this._globalDefaultprecision ) {
+            if ( !this._precisionR.test( postShader ) ) {
+                // use the shaderhighprecision flag at shaderloader start
+                //var highp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+                //var highpSupported = highp.precision != 0;
+                prePrend += this._globalDefaultprecision + &#039;\n&#039;;
+            }
+        }
+
+        // if defines
+        // add them
+        if ( defines !== undefined ) {
+            prePrend += defines.join( &#039;\n&#039; ) + &#039;\n&#039;;
+        }
+        postShader = prePrend + postShader;
+
+        return postShader;
+    }
+};
+module.exports = ShaderProcessor;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

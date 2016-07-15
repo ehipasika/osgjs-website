@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/AutoTransform.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.79</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">312</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">53.02</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.90</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Transform = require( &#039;osg/Transform&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Vec4 = require( &#039;osg/Vec4&#039; );
+var Quat = require( &#039;osg/Quat&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var TransformEnums = require( &#039;osg/TransformEnums&#039; );
+var Node = require( &#039;osg/Node&#039; );
+
+/** AutoTransform is a derived form of Transform that automatically
+ * scales or rotates to keep its children aligned with screen coordinates.
+ * W.r.t. AutorotateModes only rotate to screen is supported right now.
+ * More AutorotateModes modes should be addressed in the future.
+ * @class AutoTransform
+ */
+
+var AutoTransform = function () {
+    Transform.call( this );
+    this._matrix = Matrix.create();
+    this._position = Vec3.create();
+    this._matrixDirty = true;
+    this._scale = Vec3.createAndSet( 1.0, 1.0, 1.0 );
+    this._minimumScale = 0;
+    this._maximumScale = Number.MAX_VALUE;
+    this._rotation = Quat.create();
+    this._pivotPoint = Vec3.create();
+    this._autoScaleToScreen = false;
+    this._autoRotateToScreen = false;
+    this._cachedMatrix = Matrix.create();
+    this._firstTimeToInitEyePoint = true;
+    this._autoScaleTransitionWidthRatio = 0.25;
+    this._billboardAttribute = undefined;
+    this._previousWidth = 0.0;
+    this._previousHeight = 0.0;
+    this._previousProjection = Matrix.create();
+    this._previousPosition = Vec3.create();
+};
+
+/** @lends Autotransform.prototype */
+AutoTransform.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Transform.prototype, {
+
+    getMatrix: function () {
+        return this._matrix;
+    },
+
+    setMatrix: function ( m ) {
+        this._matrix = m;
+        this.dirtyBound();
+    },
+
+    setPosition: function ( pos ) {
+        this._position = pos;
+        this._matrixDirty = true;
+        this.dirtyBound();
+    },
+    getPosition: function () {
+        return this._position;
+    },
+
+    setRotation: function ( quat ) {
+        this._rotation = quat;
+        this._matrixDirty = true;
+        this.dirtyBound();
+    },
+
+    getRotation: function () {
+        return this._rotation;
+    },
+
+    setScale: function ( scale ) {
+        this.setScaleFromVec3( Vec3.createAndSet( scale, scale, scale ) );
+    },
+
+    setScaleFromVec3: function ( scaleVec ) {
+        this._scale = scaleVec;
+        this._matrixDirty = true;
+        this.dirtyBound();
+    },
+
+    getScale: function () {
+        return this._scale;
+    },
+
+    setMinimumScale: function ( minimumScale ) {
+        this._minimumScale = minimumScale;
+    },
+
+    getMinimumScale: function () {
+        return this._minimumScale;
+    },
+
+    setMaximumScale: function ( maximumScale ) {
+        this._maximumScale = maximumScale;
+    },
+
+    getMaximumScale: function () {
+        return this._maximumScale;
+    },
+
+    setAutoScaleToScreen: function ( autoScaleToScreen ) {
+        this._autoScaleToScreen = autoScaleToScreen;
+        this._matrixDirty = true;
+    },
+
+    getAutoScaleToScreen: function () {
+        return this._autoScaleToScreen;
+    },
+
+    setAutoRotateToScreen: function ( value ) {
+        this._autoRotateToScreen = value;
+    },
+
+    getAutoRotateToScreen: function () {
+        return this._autoRotateToScreen;
+    },
+
+    setAutoScaleTransitionWidthRatio: function ( autoScaleTransitionWidthRatio ) {
+        this._autoScaleTransitionWidthRatio = autoScaleTransitionWidthRatio;
+    },
+
+    getAutoScaleTransitionWidthRatio: function () {
+        return this._autoScaleTransitionWidthRatio;
+    },
+
+    // local to &quot;local world&quot; (not Global World)
+    computeLocalToWorldMatrix: function ( matrix /*, nodeVisitor */ ) {
+        if ( this._matrixDirty ) this.computeMatrix();
+        if ( this.referenceFrame === TransformEnums.RELATIVE_RF ) {
+            Matrix.preMult( matrix, this._matrix );
+        } else {
+            Matrix.copy( this._matrix, matrix );
+        }
+    },
+
+    computeMatrix: ( function () {
+        var neg = Vec3.create();
+        return function () {
+            if ( !this._matrixDirty ) return;
+            Matrix.makeRotateFromQuat( this._rotation, this._matrix );
+            //_cachedMatrix.postMultTranslate(_position);
+            Matrix.postMultTranslate( this._matrix, this._position );
+            Matrix.preMultScale( this._matrix, this._scale );
+            Matrix.preMultTranslate( this._matrix, Vec3.neg( this._pivotPoint, neg ) );
+            this._matrixDirty = false;
+        };
+
+    } )(),
+
+    computeWorldToLocalMatrix: ( function () {
+        var neg = Vec3.create();
+        var rotInverse = Quat.create();
+        var scaleInverse = Vec3.create();
+        return function ( matrix /*, nodeVisitor */ ) {
+            if ( this.scale[ 0 ] === 0.0 &amp;&amp; this.scale[ 1 ] === 0.0 &amp;&amp; this.scale[ 2 ] === 0.0 ) {
+                return false;
+            }
+            scaleInverse[ 0 ] = 1.0 / this._scale[ 0 ];
+            scaleInverse[ 1 ] = 1.0 / this._scale[ 1 ];
+            scaleInverse[ 2 ] = 1.0 / this._scale[ 2 ];
+            if ( this.referenceFrame === TransformEnums.RELATIVE_RF ) {
+                Matrix.postMultTranslate( matrix, Vec3.neg( this._position, neg ) );
+                if ( !Quat.zeroRotation( this._rotation ) ) {
+                    Matrix.postMultRotate( matrix, Quat.inverse( this._rotation, rotInverse ) );
+                }
+                Matrix.postMultScale( matrix, scaleInverse );
+                Matrix.postMultTranslate( matrix, this._pivotPoint );
+            } else { // absolute
+                Matrix.makeRotateFromQuat( Quat.inverse( this._rotation, rotInverse ), this._matrix );
+                Matrix.preMultTranslate( matrix, Vec3.neg( this._position, neg ) );
+                Matrix.postMultScale( matrix, scaleInverse );
+                Matrix.postMultTranslate( matrix, this._pivotPoint );
+            }
+            return true;
+        };
+    } )(),
+
+    computeBound: ( function () {
+        var matrix = Matrix.create();
+        return function ( bSphere ) {
+            if ( this._autoScaleToScreen &amp;&amp; this._firstTimeToInitEyePoint )
+                return bSphere;
+            Node.prototype.computeBound.call( this, bSphere );
+            if ( !bSphere.valid() ) {
+                return bSphere;
+            }
+            Matrix.makeIdentity( matrix );
+            // local to local world (not Global World)
+            this.computeLocalToWorldMatrix( matrix );
+            Matrix.transformBoundingSphere( matrix, bSphere, bSphere );
+            return bSphere;
+        };
+    } )(),
+
+    accept: ( function () {
+
+        return function ( visitor ) {
+            if ( visitor.getVisitorType() === NodeVisitor.CULL_VISITOR ) {
+
+                var width = visitor.getViewport().width();
+                var height = visitor.getViewport().height();
+                var projMat = visitor.getCurrentProjectionMatrix();
+                var position = this._position;
+                var doUpdate = this._firstTimeToInitEyePoint;
+
+                if ( !this._firstTimeToInitEyePoint ) {
+                    if ( width !== this._previousWidth || height !== this._previousHeight ) {
+                        doUpdate = true;
+                    } else if ( !Matrix.equal( projMat, this._previousProjection ) ) {
+                        doUpdate = true;
+                    } else if ( !Vec3.equal( position, this._previousPosition ) ) {
+                        doUpdate = true;
+                    }
+                }
+                this._firstTimeToInitEyePoint = false;
+                if ( doUpdate ) {
+                    if ( this._autoScaleToScreen ) {
+                        var modelViewMat = visitor.getCurrentModelViewMatrix();
+                        var viewport = visitor.getViewport();
+                        var psvector = this.computePixelSizeVector( viewport, projMat, modelViewMat );
+                        var v = Vec4.createAndSet( this._position[ 0 ], this._position[ 1 ], this._position[ 2 ], 1.0 );
+                        var pixelSize = Vec4.dot( v, psvector );
+                        pixelSize = 0.48 / pixelSize;
+                        var size = 1.0 / pixelSize;
+                        if ( this._autoScaleTransitionWidthRatio &gt; 0.0 ) {
+                            var c, b, a;
+                            if ( this._minimumScale &gt; 0.0 ) {
+                                var j = this._minimumScale;
+                                var i = ( this._maximumScale &lt; Number.MAX_VALUE ) ?
+                                    this._minimumScale + ( this._maximumScale - this._minimumScale ) * this._autoScaleTransitionWidthRatio :
+                                    this._minimumScale * ( 1.0 + this._autoScaleTransitionWidthRatio );
+                                c = 1.0 / ( 4.0 * ( i - j ) );
+                                b = 1.0 - 2.0 * c * i;
+                                a = j + b * b / ( 4.0 * c );
+                                var k = -b / ( 2.0 * c );
+                                if ( size &lt; k ) size = this._minimumScale;
+                                else if ( size &lt; i ) size = a + b * size + c * ( size * size );
+                            }
+                            if ( this._maximumScale &lt; Number.MAX_VALUE ) {
+                                var n = this._maximumScale;
+                                var m = ( this._minimumScale &gt; 0.0 ) ?
+                                    this._maximumScale + ( this._minimumScale - this._maximumScale ) * this._autoScaleTransitionWidthRatio :
+                                    this._maximumScale * ( 1.0 - this._autoScaleTransitionWidthRatio );
+                                c = 1.0 / ( 4.0 * ( m - n ) );
+                                b = 1.0 - 2.0 * c * m;
+                                a = n + b * b / ( 4.0 * c );
+                                var p = -b / ( 2.0 * c );
+
+                                if ( size &gt; p ) size = this._maximumScale;
+                                else if ( size &gt; m ) size = a + b * size + c * ( size * size );
+                            }
+                        }
+                        this.setScale( size );
+                    }
+                    if ( this._autoRotateToScreen ) {
+                        var rotation = Quat.create();
+                        var modelView = visitor.getCurrentModelViewMatrix();
+                        Matrix.getRotate( modelView, rotation );
+                        this.setRotation( Quat.inverse( rotation, rotation ) );
+                    }
+                    this._previousWidth = width;
+                    this._previousHeight = height;
+                    Vec3.copy( position, this._previousPosition );
+                    Matrix.copy( projMat, this._previousProjection );
+                }
+            }
+
+            Node.prototype.accept.call( this, visitor );
+        };
+    } )(),
+
+    computePixelSizeVector: ( function () {
+        var scale00 = Vec3.create();
+        var scale10 = Vec3.create();
+        return function ( W, P, M ) {
+            // Where W = viewport, P = ProjectionMatrix, M = ModelViewMatrix
+            // Comment from OSG:
+            // pre adjust P00,P20,P23,P33 by multiplying them by the viewport window matrix.
+            // here we do it in short hand with the knowledge of how the window matrix is formed
+            // note P23,P33 are multiplied by an implicit 1 which would come from the window matrix.
+
+            // scaling for horizontal pixels
+            var P00 = P[ 0 ] * W.width() * 0.5;
+            var P20_00 = P[ 8 ] * W.width() * 0.5 + P[ 11 ] * W.width() * 0.5;
+            Vec3.set( M[ 0 ] * P00 + M[ 2 ] * P20_00,
+                M[ 4 ] * P00 + M[ 6 ] * P20_00,
+                M[ 8 ] * P00 + M[ 10 ] * P20_00, scale00 );
+
+            // scaling for vertical pixels
+            var P10 = P[ 5 ] * W.height() * 0.5;
+            var P20_10 = P[ 9 ] * W.height() * 0.5 + P[ 11 ] * W.height() * 0.5;
+            Vec3.set( M[ 1 ] * P10 + M[ 2 ] * P20_10,
+                M[ 5 ] * P10 + M[ 6 ] * P20_10,
+                M[ 9 ] * P10 + M[ 10 ] * P20_10, scale10 );
+
+            var P23 = P[ 11 ];
+            var P33 = P[ 15 ];
+            var pixelSizeVector = Vec4.createAndSet( M[ 2 ] * P23, M[ 6 ] * P23, M[ 10 ] * P23, M[ 14 ] * P23 + M[ 15 ] * P33 );
+
+            var scaleRatio = 0.7071067811 / Math.sqrt( Vec3.length2( scale00 ) + Vec3.length2( scale10 ) );
+            Vec4.mult( pixelSizeVector, scaleRatio, pixelSizeVector );
+            return pixelSizeVector;
+        };
+    } )()
+
+
+} ), &#039;osg&#039;, &#039;AutoTransform&#039; );
+MACROUTILS.setTypeID( AutoTransform );
+
+module.exports = AutoTransform;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

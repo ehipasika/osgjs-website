@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/FrameBufferObject.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.07</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">351</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">66.08</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.08</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var GLObject = require( &#039;osg/GLObject&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var Timer = require( &#039;osg/Timer&#039; );
+var WebglCaps = require( &#039;osg/WebGLCaps&#039; );
+
+/**
+ * FrameBufferObject manage fbo / rtt
+ * @class FrameBufferObject
+ */
+var FrameBufferObject = function () {
+
+    GLObject.call( this );
+    StateAttribute.call( this );
+    this._fbo = undefined;
+    this._rbo = undefined;
+    this._attachments = [];
+    this._dirty = true;
+
+};
+
+FrameBufferObject.COLOR_ATTACHMENT0 = 0x8CE0;
+FrameBufferObject.DEPTH_ATTACHMENT = 0x8D00;
+FrameBufferObject.DEPTH_COMPONENT16 = 0x81A5;
+// static cache of glFrameBuffer flagged for deletion, which will actually
+// be deleted in the correct GL context.
+FrameBufferObject._sDeletedGLFrameBufferCache = new window.Map();
+
+// static method to delete FrameBuffers
+FrameBufferObject.deleteGLFrameBuffer = function ( gl, fb ) {
+
+    if ( !FrameBufferObject._sDeletedGLFrameBufferCache.has( gl ) )
+        FrameBufferObject._sDeletedGLFrameBufferCache.set( gl, [] );
+
+    FrameBufferObject._sDeletedGLFrameBufferCache.get( gl ).push( fb );
+};
+
+// static method to flush all the cached glFrameBuffers which need to be deleted in the GL context specified
+FrameBufferObject.flushDeletedGLFrameBuffers = function ( gl, availableTime ) {
+
+    // if no time available don&#039;t try to flush objects.
+    if ( availableTime &lt;= 0.0 ) return availableTime;
+
+    if ( !FrameBufferObject._sDeletedGLFrameBufferCache.has( gl ) ) return availableTime;
+
+    var elapsedTime = 0.0;
+    var beginTime = Timer.instance().tick();
+    var deleteList = FrameBufferObject._sDeletedGLFrameBufferCache.get( gl );
+    var numBuffers = deleteList.length;
+
+    for ( var i = numBuffers - 1; i &gt;= 0 &amp;&amp; elapsedTime &lt; availableTime; i-- ) {
+        gl.deleteFramebuffer( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+        elapsedTime = Timer.instance().deltaS( beginTime, Timer.instance().tick() );
+    }
+
+    return availableTime - elapsedTime;
+};
+
+FrameBufferObject.flushAllDeletedGLFrameBuffers = function ( gl ) {
+
+    if ( !FrameBufferObject._sDeletedGLFrameBufferCache.has( gl ) ) return;
+
+    var deleteList = FrameBufferObject._sDeletedGLFrameBufferCache.get( gl );
+    var numBuffers = deleteList.length;
+
+    for ( var i = numBuffers - 1; i &gt;= 0; i-- ) {
+        gl.deleteFramebuffer( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+    }
+};
+
+
+// static cache of glRenderBuffer flagged for deletion, which will actually
+// be deleted in the correct GL context.
+FrameBufferObject._sDeletedGLRenderBufferCache = new window.Map();
+
+// static method to delete RenderBuffers
+FrameBufferObject.deleteGLRenderBuffer = function ( gl, fb ) {
+
+    if ( !FrameBufferObject._sDeletedGLRenderBufferCache.has( gl ) )
+        FrameBufferObject._sDeletedGLRenderBufferCache.set( gl, [] );
+
+    FrameBufferObject._sDeletedGLRenderBufferCache.get( gl ).push( fb );
+};
+
+
+// static method to flush all the cached glRenderBuffers which need to be deleted in the GL context specified
+FrameBufferObject.flushDeletedGLRenderBuffers = function ( gl, availableTime ) {
+
+    // if no time available don&#039;t try to flush objects.
+    if ( availableTime &lt;= 0.0 ) return availableTime;
+
+    if ( !FrameBufferObject._sDeletedGLRenderBufferCache.has( gl ) ) return availableTime;
+
+    var elapsedTime = 0.0;
+    var beginTime = Timer.instance().tick();
+    var deleteList = FrameBufferObject._sDeletedGLRenderBufferCache.get( gl );
+    var numBuffers = deleteList.length;
+
+    for ( var i = numBuffers - 1; i &gt;= 0 &amp;&amp; elapsedTime &lt; availableTime; i-- ) {
+        gl.deleteRenderbuffer( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+        elapsedTime = Timer.instance().deltaS( beginTime, Timer.instance().tick() );
+    }
+
+    return availableTime - elapsedTime;
+};
+
+FrameBufferObject.flushAllDeletedGLRenderBuffers = function ( gl ) {
+
+    if ( !FrameBufferObject._sDeletedGLRenderBufferCache.has( gl ) ) return;
+
+    var deleteList = FrameBufferObject._sDeletedGLRenderBufferCache.get( gl );
+    var numBuffers = deleteList.length;
+
+    for ( var i = numBuffers - 1; i &gt;= 0; i-- ) {
+        gl.deleteRenderbuffer( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+    }
+};
+
+/** @lends FrameBufferObject.prototype */
+FrameBufferObject.prototype = MACROUTILS.objectInherit( GLObject.prototype, MACROUTILS.objectInherit( StateAttribute.prototype, {
+
+    attributeType: &#039;FrameBufferObject&#039;,
+
+    cloneType: function () {
+        return new FrameBufferObject();
+    },
+
+    dirty: function () {
+        this._dirty = true;
+    },
+
+    isDirty: function () {
+        return this._dirty;
+    },
+
+    setAttachment: function ( attachment ) {
+        this._attachments.push( attachment );
+    },
+
+    releaseGLObjects: function () {
+
+        if ( this._fbo !== undefined &amp;&amp; this._gl !== undefined ) {
+            FrameBufferObject.deleteGLFrameBuffer( this._gl, this._fbo );
+        }
+        this._fbo = undefined;
+
+        if ( this._rbo !== undefined &amp;&amp; this._gl !== undefined ) {
+            FrameBufferObject.deleteGLRenderBuffer( this._gl, this._rbo );
+        }
+        this._rbo = undefined;
+
+    },
+
+    _reportFrameBufferError: function ( code ) {
+        switch ( code ) {
+        case 0x8CD6:
+            Notify.debug( &#039;FRAMEBUFFER_INCOMPLETE_ATTACHMENT&#039; );
+            break;
+        case 0x8CD7:
+            Notify.debug( &#039;FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT&#039; );
+            break;
+        case 0x8CD9:
+            Notify.debug( &#039;FRAMEBUFFER_INCOMPLETE_DIMENSIONS&#039; );
+            break;
+        case 0x8CDD:
+            Notify.debug( &#039;FRAMEBUFFER_UNSUPPORTED&#039; );
+            break;
+        default:
+            Notify.debug( &#039;FRAMEBUFFER unknown error &#039; + code.toString( 16 ) );
+        }
+    },
+
+    reset: function () {
+        this.releaseGLObjects();
+        this._attachments = [];
+    },
+
+    getFrameBufferObject: function () {
+        return this._fbo;
+    },
+
+    createFrameBufferObject: function ( state ) {
+        this.setGraphicContext( state.getGraphicContext() );
+        this._fbo = this._gl.createFramebuffer();
+    },
+
+    createRenderBuffer: function ( format, width, height ) {
+        var gl = this._gl;
+        var renderBuffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer( gl.RENDERBUFFER, renderBuffer );
+        gl.renderbufferStorage( gl.RENDERBUFFER, format, width, height );
+
+        return renderBuffer;
+    },
+
+    framebufferRenderBuffer: function ( attachment, renderBuffer ) {
+
+        var gl = this._gl;
+        gl.bindRenderbuffer( gl.RENDERBUFFER, renderBuffer );
+        gl.framebufferRenderbuffer( gl.FRAMEBUFFER, attachment, gl.RENDERBUFFER, renderBuffer );
+
+        /* develblock:start */
+        // only visible with webgl-insector enabled
+        if ( gl.rawgl !== undefined ) {
+            Notify.log( &#039;FBO: renderBuffer: &#039; + this._fbo.trackedObject.defaultName );
+        }
+        /* develblock:end */
+    },
+
+    framebufferTexture2D: function ( state, attachment, textureTarget, texture ) {
+
+        var gl = this._gl;
+
+        // apply on unit 1 to init it
+        // make sure we do bind it whatever state stack
+        // texture is cached
+        state.applyTextureAttribute( 1, texture );
+
+        if ( texture.isDirty() || !texture.getTextureObject() ) {
+            // image wasn&#039;t ready, texture not allocated due to lack of gpu MEM
+            return false;
+        }
+
+        gl.framebufferTexture2D( gl.FRAMEBUFFER, attachment, textureTarget, texture.getTextureObject().id(), 0 );
+
+        /* develblock:start */
+        // only visible with webgl-insector enabled
+        // allow trace debug (fb&lt;-&gt;texture link)
+        if ( gl.rawgl !== undefined ) {
+            Notify.log( &#039;FBO: texture: &#039; + texture.getName() + &#039; : &#039; + texture.getTextureObject().id().trackedObject.defaultName + &#039; fbo: &#039; + this._fbo.trackedObject.defaultName );
+        }
+        /* develblock:end */
+
+        return true;
+    },
+
+    bindFrameBufferObject: function () {
+        var gl = this._gl;
+        gl.bindFramebuffer( gl.FRAMEBUFFER, this._fbo );
+    },
+
+    checkStatus: function () {
+
+        var gl = this._gl;
+        var status = gl.checkFramebufferStatus( gl.FRAMEBUFFER );
+        if ( status !== 0x8CD5 ) {
+            this._reportFrameBufferError( status );
+        }
+
+    },
+
+    _checkAllowedSize: function ( w, h ) {
+
+        var maxSize = WebglCaps.instance().getWebGLParameter( &#039;MAX_RENDERBUFFER_SIZE&#039; );
+
+        if ( w === 0 || h === 0 || h &gt; maxSize || w &gt; maxSize ) {
+            Notify.error( &#039;width (&#039; + w + &#039;) or height (&#039; + w + &#039;) makes frame buffer not bindable. Max RenderBuffer is &quot;&#039; + maxSize + &#039;&quot;&#039; );
+            return false;
+        }
+
+        return true;
+
+    },
+
+    apply: function ( state ) {
+
+        if ( !this._gl ) this.setGraphicContext( state.getGraphicContext() );
+        var gl = this._gl;
+
+        var attachments = this._attachments;
+
+        // if the fbo is created manually, we want to just bind it
+        if ( attachments.length &gt; 0 || this._fbo ) {
+
+            if ( this.isDirty() ) {
+
+                if ( !this._fbo )
+                    this.createFrameBufferObject( state );
+
+                this.bindFrameBufferObject();
+
+                var hasRenderBuffer = false;
+
+                for ( var i = 0, l = attachments.length; i &lt; l; ++i ) {
+
+                    var attachment = attachments[ i ];
+
+                    // render buffer
+                    if ( !attachment.texture ) {
+
+                        if ( !this._checkAllowedSize( attachment.width, attachment.height ) ) {
+                            this.releaseGLObjects();
+                            return;
+                        }
+
+                        this._rbo = this.createRenderBuffer( attachment.format, attachment.width, attachment.height );
+                        this.framebufferRenderBuffer( attachment.attachment, this._rbo );
+                        hasRenderBuffer = true;
+
+                    } else {
+
+                        // use texture
+                        var texture = attachment.texture;
+
+                        if ( !this._checkAllowedSize( texture.getWidth(), texture.getHeight() ) ) {
+                            this.releaseGLObjects();
+                            return;
+                        }
+
+                        if ( !this.framebufferTexture2D( state, attachment.attachment, attachment.textureTarget, texture ) ) {
+                            this.releaseGLObjects();
+                            return;
+
+                        }
+
+
+                    }
+
+                }
+
+                this.checkStatus();
+
+                // set it to null only if used renderbuffer
+                if ( hasRenderBuffer )
+                    gl.bindRenderbuffer( gl.RENDERBUFFER, null );
+
+                this._dirty = false;
+
+            } else {
+
+                gl.bindFramebuffer( gl.FRAMEBUFFER, this._fbo );
+
+                if ( Notify.reportWebGLError === true )
+                    this.checkStatus();
+
+            }
+
+        } else {
+            gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+        }
+    }
+} ) );
+
+
+module.exports = FrameBufferObject;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

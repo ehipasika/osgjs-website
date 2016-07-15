@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShadow/ShadowReceiveAttribute.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">70.18</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">324</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">35.26</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.28</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var Uniform = require( &#039;osg/Uniform&#039; );
+var Map = require( &#039;osg/Map&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+
+
+/**
+ * ShadowReceiveAttribute encapsulate Shadow Main State object
+ * @class ShadowReceiveAttribute
+ * @inherits StateAttribute
+ */
+var ShadowReceiveAttribute = function ( lightNum, disable ) {
+    StateAttribute.call( this );
+
+    this._lightNumber = lightNum;
+
+
+    // see shadowSettings.js header for shadow algo param explanations
+    // hash change var
+    this._algoType = &#039;NONE&#039;;
+
+    // shadow depth bias as projected in shadow camera space texture
+    // and viewer camera space projection introduce its bias
+    this._bias = 0.001;
+    // algo dependant
+    // Exponential shadow maps use exponential
+    // to allows fuzzy depth
+    this._exponent0 = 0.001;
+    this._exponent1 = 0.001;
+    // Variance Shadow mapping use One more epsilon
+    this._epsilonVSM = 0.001;
+    // shader compilation different upon texture precision
+    this._precision = &#039;UNSIGNED_BYTE&#039;;
+    // kernel size &amp; type for pcf
+    this._kernelSizePCF = undefined;
+
+    this._fakePCF = true;
+
+    this._rotateOffset = false;
+
+    this._enable = !disable;
+
+};
+
+ShadowReceiveAttribute.uniforms = {};
+ShadowReceiveAttribute.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( StateAttribute.prototype, {
+
+    attributeType: &#039;ShadowReceive&#039;,
+
+    cloneType: function () {
+        return new ShadowReceiveAttribute( this._lightNumber, true );
+    },
+
+    getTypeMember: function () {
+        return this.attributeType + this.getLightNumber();
+    },
+
+    getLightNumber: function () {
+        return this._lightNumber;
+    },
+
+    getUniformName: function ( name ) {
+        var prefix = this.getType() + this.getLightNumber().toString();
+        return prefix + &#039;_uniform_&#039; + name;
+    },
+
+    getRotateOffset: function () {
+        return this._rotateOffset;
+    },
+
+    setRotateOffset: function ( v ) {
+        this._rotateOffset = v;
+    },
+
+    setAlgorithm: function ( algo ) {
+        this._algoType = algo;
+    },
+
+    getAlgorithm: function () {
+        return this._algoType;
+    },
+
+    setBias: function ( bias ) {
+        this._bias = bias;
+    },
+
+    getBias: function () {
+        return this._bias;
+    },
+
+    setExponent0: function ( exp ) {
+        this._exponent0 = exp;
+    },
+
+    getExponent0: function () {
+        return this._exponent0;
+    },
+
+    setExponent1: function ( exp ) {
+        this._exponent1 = exp;
+    },
+
+    getExponent1: function () {
+        return this._exponent1;
+    },
+
+    setEpsilonVSM: function ( epsilon ) {
+        this._epsilonVSM = epsilon;
+    },
+
+    getEpsilonVSM: function () {
+        return this._epsilonVSM;
+    },
+
+    getKernelSizePCF: function () {
+        return this._kernelSizePCF;
+    },
+
+    setKernelSizePCF: function ( v ) {
+        this._kernelSizePCF = v;
+    },
+
+    getFakePCF: function () {
+        return this._fakePCF;
+    },
+
+    setFakePCF: function ( v ) {
+        this._fakePCF = v;
+    },
+
+    setPrecision: function ( precision ) {
+        this._precision = precision;
+    },
+
+    getPrecision: function () {
+        return this._precision;
+    },
+
+    setLightNumber: function ( lightNum ) {
+        this._lightNumber = lightNum;
+    },
+
+    getOrCreateUniforms: function () {
+        // uniform are once per CLASS attribute, not per instance
+        var obj = ShadowReceiveAttribute;
+
+        var typeMember = this.getTypeMember();
+
+        if ( obj.uniforms[ typeMember ] ) return obj.uniforms[ typeMember ];
+
+        // Variance Shadow mapping use One more epsilon
+        var uniformList = {
+            bias: &#039;createFloat&#039;,
+            exponent0: &#039;createFloat&#039;,
+            exponent1: &#039;createFloat&#039;,
+            epsilonVSM: &#039;createFloat&#039;
+        };
+
+        var uniforms = {};
+
+        window.Object.keys( uniformList ).forEach( function ( key ) {
+
+            var type = uniformList[ key ];
+            var func = Uniform[ type ];
+            uniforms[ key ] = func( this.getUniformName( key ) );
+
+        }.bind( this ) );
+
+        obj.uniforms[ typeMember ] = new Map( uniforms );
+
+        return obj.uniforms[ typeMember ];
+    },
+
+    getExtensions: function () {
+        var algo = this.getAlgorithm();
+        if ( algo === &#039;PCF&#039; ) {
+            return [ &#039;#extension GL_OES_standard_derivatives : enable&#039; ];
+        }
+        return [];
+    },
+
+    // Here to be common between  caster and receiver
+    // (used by shadowMap and shadow node shader)
+    getDefines: function () {
+
+        var textureType = this.getPrecision();
+        var algo = this.getAlgorithm();
+        var defines = [];
+
+        var isFloat = false;
+        var isLinearFloat = false;
+
+        if ( textureType !== &#039;UNSIGNED_BYTE&#039; )
+            isFloat = true;
+
+        if ( isFloat &amp;&amp; ( textureType === &#039;HALF_FLOAT_LINEAR&#039; || textureType === &#039;FLOAT_LINEAR&#039; ) )
+            isLinearFloat = true;
+
+
+        if ( algo === &#039;ESM&#039; ) {
+            defines.push( &#039;#define _ESM&#039; );
+        } else if ( algo === &#039;NONE&#039; ) {
+            defines.push( &#039;#define _NONE&#039; );
+        } else if ( algo === &#039;PCF&#039; ) {
+            defines.push( &#039;#define _PCF&#039; );
+            var pcf = this.getKernelSizePCF();
+
+            if ( this._fakePCF ) {
+                defines.push( &#039;#define _FAKE_PCF 1&#039; );
+            }
+
+            switch ( pcf ) {
+            case &#039;4Poisson(16texFetch)&#039;:
+                defines.push( &#039;#define _POISSON_PCF&#039; );
+                defines.push( &#039;#define _PCFx4&#039; );
+                break;
+            case &#039;8Poisson(32texFetch)&#039;:
+                defines.push( &#039;#define _POISSON_PCF&#039; );
+                defines.push( &#039;#define _PCFx9&#039; );
+                break;
+            case &#039;16Poisson(64texFetch)&#039;:
+                defines.push( &#039;#define _POISSON_PCF&#039; );
+                defines.push( &#039;#define _PCFx16&#039; );
+                break;
+            case &#039;25Poisson(100texFetch)&#039;:
+                defines.push( &#039;#define _POISSON_PCF&#039; );
+                defines.push( &#039;#define _PCFx25&#039; );
+                break;
+            case &#039;32Poisson(128texFetch)&#039;:
+                defines.push( &#039;#define _POISSON_PCF&#039; );
+                defines.push( &#039;#define _PCFx32&#039; );
+                break;
+            case &#039;1Band(1texFetch)&#039;:
+                defines.push( &#039;#define _NONE&#039; );
+                defines.push( &#039;#define _PCFx1&#039; );
+                break;
+            case &#039;4Band(4texFetch)&#039;:
+                defines.push( &#039;#define _BAND_PCF&#039; );
+                defines.push( &#039;#define _PCFx4&#039; );
+                break;
+            case &#039;9Band(9texFetch)&#039;:
+                defines.push( &#039;#define _BAND_PCF&#039; );
+                defines.push( &#039;#define _PCFx9&#039; );
+                break;
+            case &#039;16Band(16texFetch)&#039;:
+                defines.push( &#039;#define _BAND_PCF&#039; );
+                defines.push( &#039;#define _PCFx16&#039; );
+                break;
+            case &#039;4Tap(16texFetch)&#039;:
+                defines.push( &#039;#define _TAP_PCF&#039; );
+                defines.push( &#039;#define _PCFx4&#039; );
+                break;
+            case &#039;9Tap(36texFetch)&#039;:
+                defines.push( &#039;#define _TAP_PCF&#039; );
+                defines.push( &#039;#define _PCFx9&#039; );
+                break;
+            case &#039;16Tap(64texFetch)&#039;:
+                defines.push( &#039;#define _TAP_PCF&#039; );
+                defines.push( &#039;#define _PCFx25&#039; );
+                break;
+            default:
+            case &#039;1Tap(4texFetch)&#039;:
+                defines.push( &#039;#define _TAP_PCF&#039; );
+                defines.push( &#039;#define _PCFx1&#039; );
+                break;
+            }
+        } else if ( algo === &#039;VSM&#039; ) {
+            defines.push( &#039;#define _VSM&#039; );
+        } else if ( algo === &#039;EVSM&#039; ) {
+            defines.push( &#039;#define _EVSM&#039; );
+        }
+
+        if ( isFloat ) {
+            defines.push( &#039;#define _FLOATTEX&#039; );
+        }
+
+        if ( isLinearFloat ) {
+            defines.push( &#039;#define _FLOATLINEAR&#039; );
+        }
+
+        if ( this.getRotateOffset() ) {
+            defines.push( &#039;#define _ROTATE_OFFSET&#039; );
+        }
+
+        return defines;
+    },
+
+    apply: function () {
+
+        if ( !this._enable ) return;
+
+        var uniformMap = this.getOrCreateUniforms();
+
+        uniformMap.bias.setFloat( this._bias );
+        uniformMap.exponent0.setFloat( this._exponent0 );
+        uniformMap.exponent1.setFloat( this._exponent1 );
+        uniformMap.epsilonVSM.setFloat( this._epsilonVSM );
+
+    },
+
+    // need a isEnabled to let the ShaderGenerator to filter
+    // StateAttribute from the shader compilation
+    isEnabled: function () {
+        return this._enable;
+    },
+
+    // Deprecated methods, should be removed in the future
+    isEnable: function () {
+        Notify.log( &#039;ShadowAttribute.isEnable() is deprecated, use isEnabled() instead&#039; );
+        return this.isEnabled();
+    },
+
+    getHash: function () {
+        return this.getTypeMember() + &#039;_&#039; + this.getAlgorithm() + &#039;_&#039; + this.getKernelSizePCF() + &#039;_&#039; + this.getFakePCF() + &#039;_&#039; + this.getRotateOffset();
+
+    }
+
+} ), &#039;osgShadow&#039;, &#039;ShadowReceiveAttribute&#039; );
+
+MACROUTILS.setTypeID( ShadowReceiveAttribute );
+
+module.exports = ShadowReceiveAttribute;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

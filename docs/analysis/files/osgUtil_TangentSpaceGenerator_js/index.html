@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgUtil/TangentSpaceGenerator.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">48.43</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">272</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">93.75</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.61</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var BufferArray = require( &#039;osg/BufferArray&#039; );
+var Geometry = require( &#039;osg/Geometry&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var PrimitiveSet = require( &#039;osg/PrimitiveSet&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+
+
+var osg = MACROUTILS;
+
+var TangentSpaceGenerator = function () {
+    NodeVisitor.call( this );
+    this._T = undefined;
+    this._B = undefined;
+    this._N = undefined;
+    this._texCoordUnit = 0;
+};
+
+TangentSpaceGenerator.prototype = MACROUTILS.objectInherit( NodeVisitor.prototype, {
+
+    apply: function ( node ) {
+
+        if ( node.getTypeID() === Geometry.getTypeID() )
+            this.generate( node, this._texCoordUnit );
+        else
+            this.traverse( node );
+
+    },
+
+    setTexCoordUnit: function ( texCoordUnit ) {
+        this._texCoordUnit = texCoordUnit;
+    },
+
+    computePrimitiveSet: function ( geometry, primitiveSet ) {
+
+        // no indices -&gt; exit
+        if ( !primitiveSet.getIndices )
+            return;
+
+        var numIndices = primitiveSet.getNumIndices();
+
+        var vx = geometry.getAttributes().Vertex;
+        var nx = geometry.getAttributes().Normal;
+        var tx = geometry.getAttributes()[ &#039;TexCoord&#039; + this._texCoordUnit ];
+
+        var i;
+
+        if ( primitiveSet.getMode() === PrimitiveSet.TRIANGLES ) {
+
+            for ( i = 0; i &lt; numIndices; i += 3 ) {
+                this.compute( primitiveSet, vx, nx, tx, i, i + 1, i + 2 );
+            }
+
+        } else if ( primitiveSet.getMode() === PrimitiveSet.TRIANGLE_STRIP ) {
+
+            for ( i = 0; i &lt; numIndices - 2; ++i ) {
+                if ( ( i % 2 ) === 0 ) {
+                    this.compute( primitiveSet, vx, nx, tx, i, i + 1, i + 2 );
+                } else {
+                    this.compute( primitiveSet, vx, nx, tx, i + 1, i, i + 2 );
+                }
+            }
+        }
+
+    },
+
+    generate: function ( geometry, texCoordUnit ) {
+
+        this._texCoordUnit = texCoordUnit;
+
+        if ( this._texCoordUnit === undefined )
+            this._texCoordUnit = 0;
+
+        var size = geometry.getAttributes().Vertex.getElements().length;
+        this._T = new osg.Float32Array( size );
+        this._B = new osg.Float32Array( size );
+        this._N = new osg.Float32Array( size );
+
+        geometry.getPrimitiveSetList().forEach( function ( primitiveSet ) {
+
+            this.computePrimitiveSet( geometry, primitiveSet );
+
+        }, this );
+
+        var nbElements = size / 3;
+        var tangents = new osg.Float32Array( nbElements * 4 );
+
+        var tmp0 = Vec3.create();
+        var tmp1 = Vec3.create();
+        var t3 = Vec3.create();
+
+        for ( var i = 0; i &lt; nbElements; i++ ) {
+            var t = this._T.subarray( i * 3, i * 3 + 3 );
+            var n = this._N.subarray( i * 3, i * 3 + 3 );
+            var b = this._B.subarray( i * 3, i * 3 + 3 );
+
+            Vec3.normalize( n, n );
+
+            // Gram-Schmidt orthogonalize
+            // Vec3 t3 = (t - n * (n * t));
+            // t3.normalize();
+            // finalTangent = Vec4(t3, 0.0);
+            // Calculate handedness
+            // finalTangent[3] = (((n ^ t) * b) &lt; 0.0) ? -1.0 : 1.0;
+            // The bitangent vector B is then given by B = (N × T) · Tw
+
+            var nt = Vec3.dot( n, t );
+            Vec3.mult( n, nt, tmp1 );
+            Vec3.sub( t, tmp1, tmp0 );
+            Vec3.normalize( tmp0, t3 );
+
+            Vec3.cross( n, t, tmp0 );
+            var sign = Vec3.dot( tmp0, b );
+            sign = sign &lt; 0.0 ? -1.0 : 0.0;
+
+            // TODO perf : cache index var id = i * 4;
+            tangents[ i * 4 ] = t3[ 0 ];
+            tangents[ i * 4 + 1 ] = t3[ 1 ];
+            tangents[ i * 4 + 2 ] = t3[ 2 ];
+            tangents[ i * 4 + 3 ] = sign;
+        }
+
+        geometry.getAttributes().Normal.setElements( this._N );
+        geometry.getAttributes().Tangent = new BufferArray( &#039;ARRAY_BUFFER&#039;, tangents, 4 );
+
+    },
+
+    compute: function ( primitiveSet, vx, nx, tx, ia, ib, ic ) {
+
+        var i0 = primitiveSet.index( ia );
+        var i1 = primitiveSet.index( ib );
+        var i2 = primitiveSet.index( ic );
+
+        // TODO perf : cache xx.getElements() but more importantly
+        // subarray call have very high overhead, it&#039;s super useful
+        // when you call it a few times for big array chunk, but for
+        // small array extraction (each vertex) it&#039;s better to use a temporary
+        // pre allocated array and simply fill it
+        // then, you&#039;ll have to write in the big arrays at the end
+        var P1 = vx.getElements().subarray( i0 * 3, i0 * 3 + 3 );
+        var P2 = vx.getElements().subarray( i1 * 3, i1 * 3 + 3 );
+        var P3 = vx.getElements().subarray( i2 * 3, i2 * 3 + 3 );
+
+        var N1 = nx.getElements().subarray( i0 * 3, i0 * 3 + 3 );
+        var N2 = nx.getElements().subarray( i1 * 3, i1 * 3 + 3 );
+        var N3 = nx.getElements().subarray( i2 * 3, i2 * 3 + 3 );
+
+        var uv1 = tx.getElements().subarray( i0 * 2, i0 * 2 + 2 );
+        var uv2 = tx.getElements().subarray( i1 * 2, i1 * 2 + 2 );
+        var uv3 = tx.getElements().subarray( i2 * 2, i2 * 2 + 2 );
+
+        var vz, vy;
+        // TODO perf : use temporary vec
+        var V = Vec3.create();
+
+        var B1 = Vec3.create();
+        var B2 = Vec3.create();
+        var B3 = Vec3.create();
+
+        var T1 = Vec3.create();
+        var T2 = Vec3.create();
+        var T3 = Vec3.create();
+
+        var v1 = Vec3.create();
+        var v2 = Vec3.create();
+
+
+        Vec3.set( P2[ 0 ] - P1[ 0 ], uv2[ 0 ] - uv1[ 0 ], uv2[ 1 ] - uv1[ 1 ], v1 );
+        Vec3.set( P3[ 0 ] - P1[ 0 ], uv3[ 0 ] - uv1[ 0 ], uv3[ 1 ] - uv1[ 1 ], v2 );
+
+        Vec3.cross( v1, v2, V );
+
+        if ( V[ 0 ] !== 0.0 ) {
+            Vec3.normalize( V, V );
+            vy = -V[ 1 ] / V[ 0 ];
+            vz = -V[ 2 ] / V[ 0 ];
+            T1[ 0 ] += vy;
+            B1[ 0 ] += vz;
+            T2[ 0 ] += vy;
+            B2[ 0 ] += vz;
+            T3[ 0 ] += vy;
+            B3[ 0 ] += vz;
+        }
+
+
+        Vec3.set( P2[ 1 ] - P1[ 1 ], uv2[ 0 ] - uv1[ 0 ], uv2[ 1 ] - uv1[ 1 ], v1 );
+        Vec3.set( P3[ 1 ] - P1[ 1 ], uv3[ 0 ] - uv1[ 0 ], uv3[ 1 ] - uv1[ 1 ], v2 );
+
+        Vec3.cross( v1, v2, V );
+
+        if ( V[ 0 ] !== 0.0 ) {
+            Vec3.normalize( V, V );
+            vy = -V[ 1 ] / V[ 0 ];
+            vz = -V[ 2 ] / V[ 0 ];
+            T1[ 1 ] += vy;
+            B1[ 1 ] += vz;
+            T2[ 1 ] += vy;
+            B2[ 1 ] += vz;
+            T3[ 1 ] += vy;
+            B3[ 1 ] += vz;
+        }
+
+
+        Vec3.set( P2[ 2 ] - P1[ 2 ], uv2[ 0 ] - uv1[ 0 ], uv2[ 1 ] - uv1[ 1 ], v1 );
+        Vec3.set( P3[ 2 ] - P1[ 2 ], uv3[ 0 ] - uv1[ 0 ], uv3[ 1 ] - uv1[ 1 ], v2 );
+
+        Vec3.cross( v1, v2, V );
+
+        if ( V[ 0 ] !== 0.0 ) {
+            Vec3.normalize( V, V );
+            vy = -V[ 1 ] / V[ 0 ];
+            vz = -V[ 2 ] / V[ 0 ];
+            T1[ 2 ] += vy;
+            B1[ 2 ] += vz;
+            T2[ 2 ] += vy;
+            B2[ 2 ] += vz;
+            T3[ 2 ] += vy;
+            B3[ 2 ] += vz;
+        }
+
+        var tempVec = Vec3.create();
+        var tempVec2 = Vec3.create();
+
+        var Tdst, Bdst, Ndst;
+
+        Vec3.cross( N1, T1, tempVec );
+        Vec3.cross( tempVec, N1, tempVec2 );
+        Tdst = this._T.subarray( i0 * 3, i0 * 3 + 3 );
+        Vec3.add( tempVec2, Tdst, Tdst );
+
+        Vec3.cross( B1, N1, tempVec );
+        Vec3.cross( N1, tempVec, tempVec2 );
+        Bdst = this._B.subarray( i0 * 3, i0 * 3 + 3 );
+        Vec3.add( tempVec2, Bdst, Bdst );
+
+
+        Vec3.cross( N2, T2, tempVec );
+        Vec3.cross( tempVec, N2, tempVec2 );
+        Tdst = this._T.subarray( i1 * 3, i1 * 3 + 3 );
+        Vec3.add( tempVec2, Tdst, Tdst );
+
+        Vec3.cross( B2, N2, tempVec );
+        Vec3.cross( N2, tempVec, tempVec2 );
+        Bdst = this._B.subarray( i1 * 3, i1 * 3 + 3 );
+        Vec3.add( tempVec2, Bdst, Bdst );
+
+
+        Vec3.cross( N3, T3, tempVec );
+        Vec3.cross( tempVec, N3, tempVec2 );
+        Tdst = this._T.subarray( i2 * 3, i2 * 3 + 3 );
+        Vec3.add( tempVec2, Tdst, Tdst );
+
+        Vec3.cross( B3, N3, tempVec );
+        Vec3.cross( N3, tempVec, tempVec2 );
+        Bdst = this._B.subarray( i2 * 3, i2 * 3 + 3 );
+        Vec3.add( tempVec2, Bdst, Bdst );
+
+
+        Ndst = this._N.subarray( i0 * 3, i0 * 3 + 3 );
+        Vec3.add( N1, Ndst, Ndst );
+
+        Ndst = this._N.subarray( i1 * 3, i1 * 3 + 3 );
+        Vec3.add( N2, Ndst, Ndst );
+
+        Ndst = this._N.subarray( i2 * 3, i2 * 3 + 3 );
+        Vec3.add( N3, Ndst, Ndst );
+    }
+
+} );
+
+module.exports = TangentSpaceGenerator;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

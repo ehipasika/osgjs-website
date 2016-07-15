@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgGA/FirstPersonManipulator.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">70.84</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">289</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">58.87</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.45</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Manipulator = require( &#039;osgGA/Manipulator&#039; );
+var OrbitManipulator = require( &#039;osgGA/OrbitManipulator&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Vec2 = require( &#039;osg/Vec2&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Quat = require( &#039;osg/Quat&#039; );
+var FirstPersonManipulatorDeviceOrientationController = require( &#039;osgGA/FirstPersonManipulatorDeviceOrientationController&#039; );
+var FirstPersonManipulatorHammerController = require( &#039;osgGA/FirstPersonManipulatorHammerController&#039; );
+var FirstPersonManipulatorWebVRController = require( &#039;osgGA/FirstPersonManipulatorWebVRController&#039; );
+var FirstPersonManipulatorStandardMouseKeyboardController = require( &#039;osgGA/FirstPersonManipulatorStandardMouseKeyboardController&#039; );
+
+
+/**
+ * Authors:
+ *  Matt Fontaine &lt;tehqin@gmail.com&gt;
+ *  Cedric Pinson &lt;trigrou@gmail.com&gt;
+ */
+
+/**
+ *  FirstPersonManipulator
+ *  @class
+ */
+var FirstPersonManipulator = function ( boundStrategy ) {
+    Manipulator.call( this, boundStrategy );
+    this.init();
+};
+
+FirstPersonManipulator.AvailableControllerList = [ &#039;StandardMouseKeyboard&#039;, &#039;WebVR&#039;, &#039;DeviceOrientation&#039;, &#039;Hammer&#039; ];
+FirstPersonManipulator.ControllerList = [ &#039;StandardMouseKeyboard&#039;, &#039;WebVR&#039;, &#039;DeviceOrientation&#039;, &#039;Hammer&#039; ];
+
+FirstPersonManipulator.prototype = MACROUTILS.objectInherit( Manipulator.prototype, {
+
+    computeHomePosition: function ( boundStrategy ) {
+        var bs = this.getHomeBound( boundStrategy );
+        if ( !bs || !bs.valid() ) return;
+
+        this._distance = this.getHomeDistance( bs );
+        var cen = bs.center();
+        Vec3.mult( this._direction, -this._distance, this._eye );
+        Vec3.add( cen, this._eye, this._eye );
+        this.setTarget( cen );
+    },
+
+    init: function () {
+        this._direction = Vec3.createAndSet( 0.0, 1.0, 0.0 );
+        this._eye = Vec3.createAndSet( 0.0, 25.0, 10.0 );
+        this._up = Vec3.createAndSet( 0.0, 0.0, 1.0 );
+        this._distance = 1.0;
+        this._forward = new OrbitManipulator.Interpolator( 1 );
+        this._side = new OrbitManipulator.Interpolator( 1 );
+        this._lookPosition = new OrbitManipulator.Interpolator( 2 );
+
+        // direct pan interpolator (not based on auto-move)
+        this._pan = new OrbitManipulator.Interpolator( 2 );
+        this._zoom = new OrbitManipulator.Interpolator( 1 );
+
+        this._stepFactor = 1.0; // meaning radius*stepFactor to move
+        this._angleVertical = 0.0;
+        this._angleHorizontal = 0.0;
+
+        // tmp value use for computation
+        this._tmpGetTargetDir = Vec3.create();
+
+        // vr controls
+        this._vrEnable = false;
+        this._vrRot = Quat.create(); // absolute orientation
+        this._vrPos = Vec3.create(); // absolute position
+        this._vrTrans = Vec3.create(); // delta translation since last update
+
+        var self = this;
+
+        this._controllerList = {};
+        FirstPersonManipulator.ControllerList.forEach( function ( value ) {
+            if ( FirstPersonManipulator[ value ] !== undefined ) {
+                self._controllerList[ value ] = new FirstPersonManipulator[ value ]( self );
+            }
+        } );
+
+    },
+
+    setDelay: function ( dt ) {
+        this._forward.setDelay( dt );
+        this._side.setDelay( dt );
+        this._lookPosition.setDelay( dt );
+        this._pan.setDelay( dt );
+        this._zoom.setDelay( dt );
+    },
+
+    getEyePosition: function ( eye ) {
+        eye[ 0 ] = this._eye[ 0 ];
+        eye[ 1 ] = this._eye[ 1 ];
+        eye[ 2 ] = this._eye[ 2 ];
+        return eye;
+    },
+
+    setEyePosition: function ( eye ) {
+        this._eye[ 0 ] = eye[ 0 ];
+        this._eye[ 1 ] = eye[ 1 ];
+        this._eye[ 2 ] = eye[ 2 ];
+        return this;
+    },
+
+    getTarget: function ( pos ) {
+        var dir = Vec3.mult( this._direction, this._distance, this._tmpGetTargetDir );
+        Vec3.add( this._eye, dir, pos );
+        return pos;
+    },
+
+    setTarget: function ( pos ) {
+        var dir = this._tmpGetTargetDir;
+        Vec3.sub( pos, this._eye, dir );
+        dir[ 2 ] = 0.0;
+        Vec3.normalize( dir, dir );
+        this._angleHorizontal = Math.acos( dir[ 1 ] );
+        if ( dir[ 0 ] &lt; 0.0 ) {
+            this._angleHorizontal = -this._angleHorizontal;
+        }
+        Vec3.sub( pos, this._eye, dir );
+        Vec3.normalize( dir, dir );
+
+        this._angleVertical = -Math.asin( dir[ 2 ] );
+        Vec3.copy( dir, this._direction );
+    },
+
+    getLookPositionInterpolator: function () {
+        return this._lookPosition;
+    },
+    getSideInterpolator: function () {
+        return this._side;
+    },
+    getForwardInterpolator: function () {
+        return this._forward;
+    },
+    getPanInterpolator: function () {
+        return this._pan;
+    },
+    getZoomInterpolator: function () {
+        return this._zoom;
+    },
+    getRotateInterpolator: function () {
+        // for compatibility with orbit hammer controllers
+        return this._lookPosition;
+    },
+
+    computeRotation: ( function () {
+        var first = Matrix.create();
+        var rotMat = Matrix.create();
+
+        var upy = Vec3.createAndSet( 0.0, 1.0, 0.0 );
+        var upz = Vec3.createAndSet( 0.0, 0.0, 1.0 );
+        var LIMIT = Math.PI * 0.5;
+        return function ( dx, dy ) {
+            this._angleVertical += dy * 0.01;
+            this._angleHorizontal -= dx * 0.01;
+            if ( this._angleVertical &gt; LIMIT ) this._angleVertical = LIMIT;
+            else if ( this._angleVertical &lt; -LIMIT ) this._angleVertical = -LIMIT;
+
+            if ( this._vrEnable ) {
+                Quat.transformVec3( this._vrRot, upy, this._direction );
+                Vec3.normalize( this._direction, this._direction );
+                Quat.transformVec3( this._vrRot, upz, this._up );
+
+            } else {
+                Matrix.makeRotate( -this._angleVertical, 1.0, 0.0, 0.0, first );
+                Matrix.makeRotate( -this._angleHorizontal, 0.0, 0.0, 1.0, rotMat );
+                Matrix.preMult( rotMat, first );
+
+                Matrix.transformVec3( rotMat, upy, this._direction );
+                Vec3.normalize( this._direction, this._direction );
+                Matrix.transformVec3( rotMat, upz, this._up );
+            }
+        };
+    } )(),
+    reset: function () {
+        this.init();
+    },
+    setDistance: function ( d ) {
+        this._distance = d;
+    },
+    getDistance: function () {
+        return this._distance;
+    },
+    setStepFactor: function ( t ) {
+        this._stepFactor = t;
+    },
+
+    computePosition: ( function () {
+        var vec = Vec2.create();
+
+        return function ( dt ) {
+            this._forward.update( dt );
+            this._side.update( dt );
+
+            // TDOO why check with epsilon ?
+            var factor = this._distance &lt; 1e-3 ? 1e-3 : this._distance;
+
+            // see comment in orbitManipulator for fov modulation speed
+            var proj = this._camera.getProjectionMatrix();
+            var vFov = proj[ 15 ] === 1 ? 1.0 : 2.0 / proj[ 5 ];
+
+            // time based displacement vector
+            vec[ 0 ] = this._forward.getCurrent()[ 0 ];
+            vec[ 1 ] = this._side.getCurrent()[ 0 ];
+            var len2 = Vec2.length2( vec );
+            if ( len2 &gt; 1.0 ) Vec2.mult( vec, 1.0 / Math.sqrt( len2 ), vec );
+
+            // direct displacement vectors
+            var pan = this._pan.update( dt );
+            var zoom = this._zoom.update( dt );
+
+            var timeFactor = this._stepFactor * factor * vFov * dt;
+            var directFactor = this._stepFactor * factor * vFov * 0.005;
+
+            this.moveForward( vec[ 0 ] * timeFactor - zoom[ 0 ] * directFactor * 20.0 );
+            this.strafe( vec[ 1 ] * timeFactor - pan[ 0 ] * directFactor );
+            this.strafeVertical( -pan[ 1 ] * directFactor );
+
+            if ( this._vrEnable ) {
+                Vec3.add( this._eye, this._vrTrans, this._eye );
+                // in case setPoseVR skips some frame (possible if tracking is lost temporarily)
+                Vec3.init( this._vrTrans );
+            }
+        };
+    } )(),
+
+
+    update: ( function () {
+        var tmpTarget = Vec3.create();
+
+        return function ( nv ) {
+
+            var dt = nv.getFrameStamp().getDeltaTime();
+
+            var delta = this._lookPosition.update( dt );
+            this.computeRotation( -delta[ 0 ] * 0.5, -delta[ 1 ] * 0.5 );
+            this.computePosition( dt );
+
+            Vec3.add( this._eye, this._direction, tmpTarget );
+            Matrix.makeLookAt( this._eye, tmpTarget, this._up, this._inverseMatrix );
+
+            this._vrEnable = false; // setPoseVR is called on each frame
+        };
+    } )(),
+
+    setPoseVR: function ( quat, pos ) {
+        this._vrEnable = true;
+        Quat.copy( quat, this._vrRot );
+        Vec3.sub( pos, this._vrPos, this._vrTrans );
+        Vec3.copy( pos, this._vrPos );
+    },
+
+    moveForward: ( function () {
+        var tmp = Vec3.create();
+        return function ( distance ) {
+            Vec3.normalize( this._direction, tmp );
+            Vec3.mult( tmp, distance, tmp );
+            Vec3.add( this._eye, tmp, this._eye );
+        };
+    } )(),
+
+    strafe: ( function () {
+        var tmp = Vec3.create();
+        return function ( distance ) {
+            Vec3.cross( this._direction, this._up, tmp );
+            Vec3.normalize( tmp, tmp );
+            Vec3.mult( tmp, distance, tmp );
+            Vec3.add( this._eye, tmp, this._eye );
+        };
+    } )(),
+
+    strafeVertical: ( function () {
+        var tmp = Vec3.create();
+        return function ( distance ) {
+            Vec3.normalize( this._up, tmp );
+            Vec3.mult( tmp, distance, tmp );
+            Vec3.add( this._eye, tmp, this._eye );
+        };
+    } )()
+
+} );
+
+FirstPersonManipulator.DeviceOrientation = FirstPersonManipulatorDeviceOrientationController;
+FirstPersonManipulator.Hammer = FirstPersonManipulatorHammerController;
+FirstPersonManipulator.WebVR = FirstPersonManipulatorWebVRController;
+FirstPersonManipulator.StandardMouseKeyboard = FirstPersonManipulatorStandardMouseKeyboardController;
+
+module.exports = FirstPersonManipulator;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

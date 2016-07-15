@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShader/ShaderGenerator.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">61.27</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">251</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">33.21</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.89</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var Notify = require( &#039;osg/Notify&#039; );
+var Program = require( &#039;osg/Program&#039; );
+var Shader = require( &#039;osg/Shader&#039; );
+var Map = require( &#039;osg/Map&#039; );
+var Compiler = require( &#039;osgShader/Compiler&#039; );
+var ShaderProcessor = require( &#039;osgShader/ShaderProcessor&#039; );
+
+// this is the list of attributes type we support by default to generate shader
+// if you need to adjust for your need provide or modify this list
+// if you still need more fine tuning to the filter, override the filterAttributeTypes
+var DefaultsAcceptAttributeTypes = [
+    &#039;ShadowReceive&#039;,
+    &#039;Skinning&#039;,
+    &#039;Morph&#039;,
+    &#039;ShadowTexture&#039;,
+    &#039;Texture&#039;,
+    &#039;Light&#039;,
+    &#039;Material&#039;,
+    &#039;Billboard&#039;
+];
+
+var ShaderGenerator = function () {
+    this._cache = new window.Map();
+
+    // ShaderProcessor singleton used by ShaderGenerator
+    // but user can replace it if needed
+    this._shaderProcessor = new ShaderProcessor();
+    this._acceptAttributeTypes = new window.Set( DefaultsAcceptAttributeTypes );
+
+    // ShaderCompiler Object to instanciate
+    this._ShaderCompiler = Compiler;
+};
+
+ShaderGenerator.prototype = {
+
+    // setShaderCompiler that will be used to createShader
+    setShaderCompiler: function ( compiler ) {
+        this._ShaderCompiler = compiler;
+    },
+
+    getShaderCompiler: function () {
+        return this._ShaderCompiler;
+    },
+
+
+    // return a Set of accepted attribtues to generate shader
+    getAcceptAttributeTypes: function () {
+        return this._acceptAttributeTypes;
+    },
+
+
+    getShaderProcessor: function () {
+        return this._shaderProcessor;
+    },
+
+    setShaderProcessor: function ( shaderProcessor ) {
+        this._shaderProcessor = shaderProcessor;
+    },
+
+    // filter input types and write the result in the outputs array
+    filterAttributeTypes: function ( attribute ) {
+
+        // TODO: use same mechanism as acceptAttributesTypes ?
+        // with a default set in a var and use overwrittable Set
+        // when inheriting the class
+        // Faster &amp;&amp; Flexiblier
+        if ( attribute.libraryName() !== &#039;osg&#039; &amp;&amp; attribute.libraryName() !== &#039;osgShadow&#039; &amp;&amp; attribute.libraryName() !== &#039;osgAnimation&#039; )
+            return true;
+
+        var attributeType = attribute.getType();
+
+        // accept only attribute listed in the container
+        if ( !this._acceptAttributeTypes.has( attributeType ) )
+            return true;
+
+        // works for attribute that contains isEnabled
+        // Light, Shadow. It let us to filter them to build a shader if not enabled
+        if ( attribute.isEnabled &amp;&amp; !attribute.isEnabled() )
+            return true;
+        // // if it&#039;s a light and it&#039;s not enable we filter it
+        // if ( attribute.typeID === Light.typeID &amp;&amp; !attribute.isEnabled() ) {
+        //     return true;
+        // }
+
+        return false;
+    },
+
+    // get actives attribute that comes from state
+    getActiveAttributeList: function ( state, list ) {
+
+        var hash = &#039;&#039;;
+        var attributeMap = state.attributeMap;
+        var attributeMapKeys = attributeMap.getKeys();
+
+        for ( var j = 0, k = attributeMapKeys.length; j &lt; k; j++ ) {
+
+            var keya = attributeMapKeys[ j ];
+            var attributeStack = attributeMap[ keya ];
+            var attr = attributeStack.lastApplied;
+
+            if ( this.filterAttributeTypes( attr ) )
+                continue;
+
+            if ( attr.getHash ) {
+                hash += attr.getHash();
+            } else {
+                hash += attr.getType();
+            }
+            list.push( attr );
+        }
+        return hash;
+    },
+
+    // get actives texture attribute that comes from state
+    getActiveTextureAttributeList: function ( state, list ) {
+        var hash = &#039;&#039;;
+        var attributeMapList = state.textureAttributeMapList;
+        var i, l;
+
+        for ( i = 0, l = attributeMapList.length; i &lt; l; i++ ) {
+            var attributeMapForUnit = attributeMapList[ i ];
+            if ( !attributeMapForUnit ) {
+                continue;
+            }
+            list[ i ] = [];
+
+            var attributeMapForUnitKeys = attributeMapForUnit.getKeys();
+
+            for ( var j = 0, m = attributeMapForUnitKeys.length; j &lt; m; j++ ) {
+
+                var key = attributeMapForUnitKeys[ j ];
+                var attributeStack = attributeMapForUnit[ key ];
+                if ( attributeStack.values().length === 0 ) {
+                    continue;
+                }
+
+                var attr = attributeStack.lastApplied;
+                if ( this.filterAttributeTypes( attr ) )
+                    continue;
+
+                if ( attr.isTextureNull() )
+                    continue;
+
+                if ( attr.getHash ) {
+                    hash += attr.getHash();
+                } else {
+                    hash += attr.getType();
+                }
+                list[ i ].push( attr );
+            }
+        }
+        return hash;
+    },
+
+    getActiveUniforms: function ( state, attributeList, textureAttributeList ) {
+
+        var uniforms = {};
+
+        for ( var i = 0, l = attributeList.length; i &lt; l; i++ ) {
+
+            var at = attributeList[ i ];
+            if ( at.getOrCreateUniforms ) {
+                var attributeUniformMap = at.getOrCreateUniforms();
+                // It could happen that uniforms are declared conditionally
+                if ( attributeUniformMap !== undefined ) {
+                    var attributeUniformMapKeys = attributeUniformMap.getKeys();
+
+                    for ( var j = 0, m = attributeUniformMapKeys.length; j &lt; m; j++ ) {
+                        var name = attributeUniformMapKeys[ j ];
+                        var uniform = attributeUniformMap[ name ];
+                        uniforms[ uniform.getName() ] = uniform;
+                    }
+                }
+            }
+        }
+
+        for ( var a = 0, n = textureAttributeList.length; a &lt; n; a++ ) {
+            var tat = textureAttributeList[ a ];
+            if ( tat ) {
+                for ( var b = 0, o = tat.length; b &lt; o; b++ ) {
+                    var attr = tat[ b ];
+
+                    var texUniformMap = attr.getOrCreateUniforms( a );
+                    var texUniformMapKeys = texUniformMap.getKeys();
+
+                    for ( var t = 0, tl = texUniformMapKeys.length; t &lt; tl; t++ ) {
+                        var tname = texUniformMapKeys[ t ];
+                        var tuniform = texUniformMap[ tname ];
+                        uniforms[ tuniform.getName() ] = tuniform;
+                    }
+                }
+            }
+        }
+
+        return new Map( uniforms );
+    },
+
+    getOrCreateProgram: ( function () {
+        // TODO: double check GC impact of this stack
+        // TODO: find a way to get a hash dirty/cache on stateAttribute
+        var textureAttributes = [];
+        var attributes = [];
+
+        return function ( state ) {
+            // extract valid attributes
+            var hash = &#039;&#039;;
+            attributes.length = 0;
+            textureAttributes.length = 0;
+            hash += this.getActiveAttributeList( state, attributes );
+            hash += this.getActiveTextureAttributeList( state, textureAttributes );
+
+            var cache = this._cache.get( hash );
+            if ( cache !== undefined ) {
+                return cache;
+            }
+
+
+            // use ShaderCompiler, it can be overrided by a custom one
+            var ShaderCompiler = this._ShaderCompiler;
+            var shaderGen = new ShaderCompiler( attributes, textureAttributes, this._shaderProcessor );
+
+            /* develblock:start */
+            // Logs hash, attributes and compiler
+            Notify.debug( &#039;New Compilation &#039;, false, true );
+            Notify.debug( {
+                Attributes: attributes,
+                Texture: textureAttributes,
+                Hash: hash,
+                Compiler: shaderGen.getFragmentShaderName()
+            }, false, true );
+            /* develblock:end */
+
+            var vertexshader = shaderGen.createVertexShader();
+            var fragmentshader = shaderGen.createFragmentShader();
+
+            var program = new Program(
+                new Shader( Shader.VERTEX_SHADER, vertexshader ),
+                new Shader( Shader.FRAGMENT_SHADER, fragmentshader ) );
+
+            program.hash = hash;
+            program.setActiveUniforms( this.getActiveUniforms( state, attributes, textureAttributes ) );
+            program.generated = true;
+
+            this._cache.set( hash, program );
+            return program;
+        };
+    } )()
+};
+
+module.exports = ShaderGenerator;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgShadow/ShadowFrustumIntersection.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">64.45</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">184</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">41.80</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.43</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var BoundingBox = require( &#039;osg/BoundingBox&#039; );
+var BoundingSphere = require( &#039;osg/BoundingSphere&#039; );
+var Camera = require( &#039;osg/Camera&#039; );
+var Geometry = require( &#039;osg/Geometry&#039; );
+var Light = require( &#039;osg/Light&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var MatrixMemoryPool = require( &#039;osg/MatrixMemoryPool&#039; );
+var MatrixTransform = require( &#039;osg/MatrixTransform&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var Plane = require( &#039;osg/Plane&#039; );
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+
+/**
+ * [ComputeFrustumBoundsVisitor get a scene bounds limited by a light and camera frustum]
+ */
+var ComputeMultiFrustumBoundsVisitor = function () {
+
+    NodeVisitor.call( this, NodeVisitor.TRAVERSE_ALL_CHILDREN );
+    this._matrixStack = [ Matrix.create() ];
+    this._reservedMatrixStack = new MatrixMemoryPool();
+    this._bb = new BoundingBox();
+    this._bs = new BoundingSphere();
+
+};
+
+/*
+ * TODO: apply world matrix on the traverse instead of per node
+ */
+ComputeMultiFrustumBoundsVisitor.prototype = MACROUTILS.objectInherit( NodeVisitor.prototype, {
+    reset: function ( traversalMask, worldLightPos, cameraFrustum, cameraNearFar, lightFrustum ) {
+
+        this.setTraversalMask( traversalMask );
+
+        this._cameraFrustum = cameraFrustum;
+        this._lightFrustum = lightFrustum;
+
+        // what plane to exclude from shadowedscene
+        this.getCameraPlaneMaskForLightNear( worldLightPos, cameraFrustum, cameraNearFar ? 6 : 4 );
+
+        this._reservedMatrixStack.reset();
+        this._matrixStack.length = 1;
+        this._bb.init();
+    },
+
+    getBoundingBox: function () {
+        return this._bb;
+    },
+
+
+    getCameraPlaneMaskForLightNear: function ( point, cameraFrustum, len ) {
+        var selectorMask = 0x1;
+        var resultMask = 15;
+        var i;
+
+        for ( i = 0; i &lt; len; ++i ) {
+            resultMask = ( resultMask &lt;&lt; 1 ) | 1;
+        }
+
+        var planeList = cameraFrustum.getPlanes();
+        for ( i = 0; i &lt; len; ++i ) {
+            if ( Plane.distanceToPlane( planeList[ i ], point ) &lt; 0.0 ) {
+                // Ligth frustum source poitn is outside this plane.
+                // subsequent checks against this plane not required.
+                // as light position is behind those,
+                // and culling that would cull light near
+                resultMask ^= selectorMask;
+            }
+            selectorMask &lt;&lt;= 1;
+        }
+        this._cameraPlaneMaskedByLightNear = resultMask;
+
+        cameraFrustum.setResultMask( resultMask );
+        cameraFrustum.pushCurrentMask( resultMask );
+        return resultMask;
+    },
+
+    applyTransform: function ( transform ) {
+
+        var matrix = this._reservedMatrixStack.get();
+        var stackLength = this._matrixStack.length;
+        Matrix.copy( this._matrixStack[ stackLength - 1 ], matrix );
+        transform.computeLocalToWorldMatrix( matrix, this );
+
+        var bs = this._bs;
+        Matrix.transformBoundingSphere( matrix, transform.getBound(), this._bs );
+
+        // camera cull
+        if ( this._cameraFrustum.getCurrentMask() !== 0 ) {
+            // father bounding sphere is not totally inside
+            // now test this one
+            if ( !this._cameraFrustum.containsBoundingSphere( bs ) )
+                return; // culled
+        }
+
+        // light cull
+        if ( this._lightFrustum.getCurrentMask() !== 0 ) {
+            // father bounding sphere is not totally inside
+            // now test this one
+            if ( !this._lightFrustum.containsBoundingSphere( bs ) )
+                return; // culled
+        }
+
+        this._cameraFrustum.pushCurrentMask();
+        this._lightFrustum.pushCurrentMask();
+
+        this.pushMatrix( matrix );
+
+        this.traverse( transform );
+
+        this._cameraFrustum.popCurrentMask();
+        this._lightFrustum.popCurrentMask();
+
+        this.popMatrix();
+    },
+    applyBoundingBox: ( function () {
+        var bbOut = new BoundingBox();
+        return function ( bbox ) {
+            var stackLength = this._matrixStack.length;
+            var matrix = this._matrixStack[ stackLength - 1 ];
+            if ( Matrix.isIdentity( matrix ) ) {
+                this._bb.expandByBoundingBox( bbox );
+            } else if ( bbox.valid() ) {
+                Matrix.transformBoundingBox( matrix, bbox, bbOut );
+                this._bb.expandByBoundingBox( bbOut );
+            }
+        };
+    } )(),
+
+    apply: function ( node ) {
+
+        var typeID = node.getTypeID();
+
+        if ( node instanceof MatrixTransform ) {
+            this.applyTransform( node );
+            return;
+
+        } else if ( typeID === Geometry.getTypeID() ) {
+            var bs = this._bs;
+            var matrix = this._matrixStack[ this._matrixStack.length - 1 ];
+            Matrix.transformBoundingSphere( matrix, node.getBound(), bs );
+
+            // camera cull
+            if ( this._cameraFrustum.getCurrentMask() !== 0 ) {
+                // father bounding sphere is not totally inside
+                // now test this one
+                if ( !this._cameraFrustum.containsBoundingSphere( bs ) )
+                    return; // culled
+            }
+
+            // light cull
+            if ( this._lightFrustum.getCurrentMask() !== 0 ) {
+                // father bounding sphere is not totally inside
+                // now test this one
+                if ( !this._lightFrustum.containsBoundingSphere( bs ) )
+                    return; // culled
+            }
+
+            // Visible: we enlarge the bbox
+            this.applyBoundingBox( node.getBoundingBox() );
+
+            return;
+        } else if ( typeID === Camera.getTypeID() ) {
+
+        } else if ( typeID === Light.getTypeID() ) {
+
+        }
+
+
+        this.traverse( node );
+
+    },
+
+    pushMatrix: function ( matrix ) {
+        this._matrixStack.push( matrix );
+    },
+
+    popMatrix: function () {
+        this._matrixStack.pop();
+    },
+
+} );
+
+module.exports = ComputeMultiFrustumBoundsVisitor;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

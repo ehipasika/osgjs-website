@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgText/Text.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.22</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">332</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">58.90</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">3.80</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+var Vec4 = require( &#039;osg/Vec4&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var AutoTransform = require( &#039;osg/AutoTransform&#039; );
+var MatrixTransform = require( &#039;osg/MatrixTransform&#039; );
+var Shape = require( &#039;osg/Shape&#039; );
+var Texture = require( &#039;osg/Texture&#039; );
+var BlendFunc = require( &#039;osg/BlendFunc&#039; );
+
+
+/**
+ *  @class Text: Text 2D using a Canvas2D as a texture for a textured quad.
+ *  Notes: The OSGjs Text has been implemented like OSG osgText::Text as much as possible. However there are some
+ *  things that should be noted:
+ *  - This Text is far more simple than OSG ones, it only supports basic functionality.
+ *  - In contrast to OSG, Text inherits from AutoTransform in osgjs.
+ *  - Supported fonts are not the same in HTML than in OSG/C++.
+ *  - Vertical layout is not supported right now.
+ *  - BaseLine alignments are not supported, instead they are converted to supported ones if parsing a osgjs file.
+ *  - Set the color in the range [ 0 - 1 ], as if you were working with OSG.
+ *  - Texts are generated as a canvas 2D texture sticked in a quad. The size of the texture is the next power of two of the current size of the
+ *    text so the bigger is your characterSize, the more memory it will consume.
+ */
+var Text = function ( text ) {
+    AutoTransform.call( this );
+    // create a canvas element
+    this._canvas = document.createElement( &#039;canvas&#039; );
+    this._context = this._canvas.getContext( &#039;2d&#039; );
+    this._matrixTransform = new MatrixTransform();
+    this.addChild( this._matrixTransform );
+    this._text = &#039;&#039;;
+    if ( text !== undefined ) this._text = text;
+    this._font = &#039;monospace&#039;;
+    // Vec4 value to load/return
+    this._color = Vec4.createAndSet( 0.0, 0.0, 0.0, 1.0 );
+    // This determines the text color, it can take a hex value or rgba value (e.g. rgba(255,0,0,0.5))
+    this._fillStyle = &#039;rgba( 0, 0, 0, 1 )&#039;;
+    // This determines the alignment of text, e.g. left, center, right
+    this._context.textAlign = &#039;center&#039;;
+    this._textX = undefined;
+    // This determines the baseline of the text, e.g. top, middle, bottom
+    this._context.baseLine = &#039;middle&#039;;
+    this._textY = undefined;
+    // Size of the textured quad in meters.
+    this._charactherSize = 1;
+    this._charactherSizeMode = Text.OBJECT_COORDS;
+    // Font resolution
+    this._fontSize = 32;
+    this._geometry = undefined;
+    this._autoRotateToScreen = false;
+    this._position = Vec3.create();
+    this._layout = Text.LEFT_TO_RIGHT;
+    this._alignment = Text.CENTER_CENTER;
+    // NPOT textures
+    this._forcePowerOfTwo = false;
+    // Lazy initialization
+    this.drawText();
+    this._dirty = false;
+};
+
+// CharacterSizeMode
+Text.OBJECT_COORDS = 0;
+Text.SCREEN_COORDS = 1;
+Text.OBJECT_COORDS_WITH_MAXIMUM_SCREEN_SIZE_CAPPED_BY_FONT_HEIGHT = 2;
+
+// Layout enum
+Text.LEFT_TO_RIGHT = &#039;ltr&#039;;
+Text.RIGHT_TO_LEFT = &#039;rtl&#039;;
+
+// Alignment enum
+Text.LEFT_TOP = 0;
+Text.LEFT_CENTER = 1;
+Text.LEFT_BOTTOM = 2;
+
+Text.CENTER_TOP = 3;
+Text.CENTER_CENTER = 4;
+Text.CENTER_BOTTOM = 5;
+
+Text.RIGHT_TOP = 6;
+Text.RIGHT_CENTER = 7;
+Text.RIGHT_BOTTOM = 8;
+
+/** @lends Text.prototype */
+Text.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( AutoTransform.prototype, {
+
+    drawText: function () {
+        if ( this._geometry !== undefined ) {
+            this._matrixTransform.removeChild( this._geometry );
+            // The text could be dynamic, so we need to remove GL objects
+            this._geometry.releaseGLObjects();
+        }
+        if ( !this._text ) return;
+        this.setTextProperties();
+        this._canvas.width = this._context.measureText( this._text ).width;
+        this._canvas.height = this._fontSize * 2;
+        // For devices not supporting NPOT textures
+        if ( this._forcePowerOfTwo ) {
+            this._canvas.width = this._nextPowerOfTwo( this._canvas.width );
+            this._canvas.height = this._nextPowerOfTwo( this._canvas.height );
+        }
+        // We need to set the text properties again, as the canvas size cold change.
+        this.setTextProperties();
+        this._context.clearRect( 0, 0, this._canvas.width, this._canvas.height );
+        this._context.fillText( this._text, this._textX, this._textY );
+        // Right now we set the pivot point to center, to assure the bounding box is correct when rendering billboards.
+        // TODO: Possibility to set different pivot point so we can have missing alignments.
+        var aspectRatio = this._canvas.width / this._canvas.height;
+        var quadWidth = this._charactherSize * aspectRatio;
+        this._geometry = Shape.createTexturedQuadGeometry( -quadWidth / 2, -this._charactherSize / 2, 0, quadWidth, 0, 0, 0, this._charactherSize, 0 );
+        // create a texture to attach the canvas2D
+        var texture = new Texture();
+        texture.setTextureSize( this._canvas.width, this._canvas.height );
+        texture.setMinFilter( &#039;LINEAR&#039; );
+        texture.setMagFilter( &#039;LINEAR&#039; );
+        texture.setImage( this._canvas );
+        // Transparency stuff
+        var stateset = this._geometry.getOrCreateStateSet();
+        stateset.setTextureAttributeAndModes( 0, texture );
+        stateset.setRenderingHint( &#039;TRANSPARENT_BIN&#039; );
+        stateset.setAttributeAndModes( new BlendFunc( BlendFunc.ONE, BlendFunc.ONE_MINUS_SRC_ALPHA ) );
+        this._matrixTransform.addChild( this._geometry );
+        this.dirtyBound();
+    },
+
+    setText: function ( text ) {
+        this._text = text;
+        // Canvas size could change so we need to make it dirty.
+        this._dirty = true;
+    },
+
+    getText: function () {
+        return this._text;
+    },
+
+    setFont: function ( font ) {
+        this._font = font;
+        this._dirty = true;
+    },
+
+    setColor: function ( color ) {
+        this._color = color;
+        // Convert color to html range
+        this._fillStyle = &#039;rgba(&#039; + Math.round( color[ 0 ] * 255 ) + &#039;,&#039; + Math.round( color[ 1 ] * 255 ) + &#039;,&#039; + Math.round( color[ 2 ] * 255 ) + &#039;,&#039; + color[ 3 ] + &#039;)&#039;;
+        this._context.fillStyle = this._fillStyle;
+        // Canvas size does not change so we don&#039;t need to redo the quad.
+        this._context.fillText( this._text, this._textX, this._textY );
+    },
+
+    getColor: function () {
+        return this._color;
+    },
+
+    setCharacterSize: function ( size ) {
+        this._charactherSize = size;
+        if ( this._charactherSizeMode !== Text.OBJECT_COORDS ) {
+            Matrix.makeScale( this._charactherSize, this._charactherSize, this._charactherSize, this._matrixTransform.getMatrix() );
+            if ( this._charactherSizeMode === Text.OBJECT_COORDS_WITH_MAXIMUM_SCREEN_SIZE_CAPPED_BY_FONT_HEIGHT )
+                this.setMaximumScale( this._charactherSize );
+        }
+        this._dirty = true;
+    },
+
+    getCharacterSize: function () {
+        return this._charactherSize;
+    },
+
+    setCharacterSizeMode: function ( mode ) {
+        this._charactherSizeMode = mode;
+        if ( this._charactherSizeMode !== Text.OBJECT_COORDS ) {
+            Matrix.makeScale( this._charactherSize, this._charactherSize, this._charactherSize, this._matrixTransform.getMatrix() );
+            this.setAutoScaleToScreen( true );
+            this.setMaximumScale( Number.MAX_VALUE );
+            if ( this._charactherSizeMode === Text.OBJECT_COORDS_WITH_MAXIMUM_SCREEN_SIZE_CAPPED_BY_FONT_HEIGHT )
+                this.setMaximumScale( this._charactherSize );
+        } else {
+            this._matrixTransform.setMatrix( Matrix.create() );
+            this.setAutoScaleToScreen( false );
+        }
+        this._dirty = true;
+    },
+
+    getCharacterSizeMode: function () {
+        return this._charactherSizeMode;
+    },
+
+    setFontResolution: function ( resolution ) {
+        this._fontSize = resolution;
+        this._dirty = true;
+    },
+
+    getFontResolution: function () {
+        return this._fontSize;
+    },
+
+    setPosition: function ( position ) {
+        this._position = position;
+        Matrix.makeTranslate( position[ 0 ], position[ 1 ], position[ 2 ], this.getMatrix() );
+    },
+
+    getPosition: function () {
+        return this._position;
+    },
+
+    setTextProperties: function () {
+        this._context.fillStyle = this._fillStyle;
+        this._setAlignmentValues( this._alignment );
+        this._context.font = this._fontSize + &#039;px &#039; + this._font;
+        this._context.direction = this._layout;
+    },
+
+    setAutoRotateToScreen: function ( value ) {
+        AutoTransform.prototype.setAutoRotateToScreen.call( this, value );
+        this._dirty = true;
+    },
+
+    getAutoRotateToScreen: function () {
+        return this._autoRotateToScreen;
+    },
+
+    setLayout: function ( layout ) {
+        if ( typeof layout === &#039;string&#039; ) {
+            this._layout = Text[ layout ];
+        } else {
+            this._layout = layout;
+        }
+        this._dirty = true;
+    },
+    getLayout: function () {
+        return this._layout;
+    },
+    setAlignment: function ( alignment ) {
+        if ( typeof alignment === &#039;string&#039; ) {
+            this._alignment = Text[ alignment ];
+        } else {
+            this._alignment = alignment;
+        }
+        this._dirty = true;
+    },
+    getAlignment: function () {
+        return this._alignment;
+    },
+
+
+    traverse: function ( visitor ) {
+        if ( this._dirty ) {
+            this.drawText();
+            this._dirty = false;
+        }
+        AutoTransform.prototype.traverse.call( this, visitor );
+    },
+
+    _setAlignmentValues: function ( alignment ) {
+        // Convert the OSG Api to js API
+        switch ( alignment ) {
+        case Text.LEFT_TOP:
+            this._context.textAlign = &#039;left&#039;;
+            this._textX = 0;
+            this._context.textBaseline = &#039;top&#039;;
+            this._textY = 0;
+            break;
+        case Text.LEFT_CENTER:
+            this._context.textAlign = &#039;left&#039;;
+            this._textX = 0;
+            this._context.textBaseline = &#039;middle&#039;;
+            this._textY = this._canvas.height / 2;
+            break;
+        case Text.LEFT_BOTTOM:
+            this._context.textAlign = &#039;left&#039;;
+            this._textX = 0;
+            this._context.textBaseline = &#039;bottom&#039;;
+            this._textY = this._canvas.height;
+            break;
+        case Text.CENTER_TOP:
+            this._context.textAlign = &#039;center&#039;;
+            this._textX = this._canvas.width / 2;
+            this._context.textBaseline = &#039;top&#039;;
+            this._textY = 0;
+            break;
+        case Text.CENTER_CENTER:
+            this._context.textAlign = &#039;center&#039;;
+            this._textX = this._canvas.width / 2;
+            this._context.textBaseline = &#039;middle&#039;;
+            this._textY = this._canvas.height / 2;
+            break;
+        case Text.CENTER_BOTTOM:
+            this._context.textAlign = &#039;center&#039;;
+            this._textX = this._canvas.width / 2;
+            this._context.textBaseline = &#039;bottom&#039;;
+            this._textY = this._canvas.height;
+            break;
+        case Text.RIGHT_TOP:
+            this._context.textAlign = &#039;right&#039;;
+            this._textX = this._canvas.width;
+            this._context.textBaseline = &#039;top&#039;;
+            this._textY = 0;
+            break;
+        case Text.RIGHT_CENTER:
+            this._context.textAlign = &#039;right&#039;;
+            this._textX = this._canvas.width;
+            this._context.textBaseline = &#039;middle&#039;;
+            this._textY = this._canvas.height / 2;
+            break;
+        case Text.RIGHT_BOTTOM:
+            this._context.textAlign = &#039;right&#039;;
+            this._textX = this._canvas.width;
+            this._context.textBaseline = &#039;bottom&#039;;
+            this._textY = this._canvas.height;
+            break;
+        }
+    },
+    setForcePowerOfTwo: function ( value ) {
+        this._forcePowerOfTwo = value;
+    },
+    getForcePowerOfTwo: function () {
+        return this._forcePowerOfTwo;
+    },
+    _nextPowerOfTwo: function ( value ) {
+        var v = value;
+        v--;
+        v |= v &gt;&gt; 1;
+        v |= v &gt;&gt; 2;
+        v |= v &gt;&gt; 4;
+        v |= v &gt;&gt; 8;
+        v |= v &gt;&gt; 16;
+        v++;
+        return v;
+    }
+} ), &#039;osgText&#039;, &#039;Text&#039; );
+
+module.exports = Text;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

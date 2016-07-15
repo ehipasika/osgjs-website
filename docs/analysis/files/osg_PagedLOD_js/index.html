@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/PagedLOD.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">64.15</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">244</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">72.36</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.79</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Lod = require( &#039;osg/Lod&#039; );
+var NodeVisitor = require( &#039;osg/NodeVisitor&#039; );
+var Matrix = require( &#039;osg/Matrix&#039; );
+var Vec3 = require( &#039;osg/Vec3&#039; );
+
+
+/**
+ *  PagedLOD that can contains paged child nodes
+ *  @class PagedLod
+ */
+var PagedLOD = function () {
+    Lod.call( this );
+    this._perRangeDataList = [];
+    this._loading = false;
+    this._expiryTime = 0.0;
+    this._expiryFrame = 0;
+    this._centerMode = Lod.USER_DEFINED_CENTER;
+    this._frameNumberOfLastTraversal = 0;
+    this._databasePath = &#039;&#039;;
+    this._numChildrenThatCannotBeExpired = 0;
+};
+
+/**
+ *  PerRangeData utility structure to store per range values
+ *  @class PerRangeData
+ */
+var PerRangeData = function () {
+    this.filename = &#039;&#039;;
+    this.function = undefined;
+    this.loaded = false;
+    this.timeStamp = 0.0;
+    this.frameNumber = 0;
+    this.frameNumberOfLastTraversal = 0;
+    this.dbrequest = undefined;
+};
+
+/** @lends PagedLOD.prototype */
+PagedLOD.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Lod.prototype, {
+    // Functions here
+    setRange: function ( childNo, min, max ) {
+        if ( childNo &gt;= this._range.length ) {
+            var r = [];
+            r.push( [ min, min ] );
+            this._range.push( r );
+        }
+        this._range[ childNo ][ 0 ] = min;
+        this._range[ childNo ][ 1 ] = max;
+    },
+
+    setExpiryTime: function ( expiryTime ) {
+        this._expiryTime = expiryTime;
+    },
+
+    setDatabasePath: function ( path ) {
+        this._databasePath = path;
+    },
+
+    getDatabasePath: function () {
+        return this._databasePath;
+    },
+
+    setFileName: function ( childNo, filename ) {
+        // May we should expand the vector first?
+        if ( childNo &gt;= this._perRangeDataList.length ) {
+            var rd = new PerRangeData();
+            rd.filename = filename;
+            this._perRangeDataList.push( rd );
+        } else {
+            this._perRangeDataList[ childNo ].filename = filename;
+        }
+    },
+    setFunction: function ( childNo, func ) {
+        if ( childNo &gt;= this._perRangeDataList.length ) {
+            var rd = new PerRangeData();
+            rd.function = func;
+            this._perRangeDataList.push( rd );
+        } else {
+            this._perRangeDataList[ childNo ].function = func;
+        }
+    },
+
+    addChild: function ( node, min, max ) {
+        Lod.prototype.addChild.call( this, node, min, max );
+        this._perRangeDataList.push( new PerRangeData() );
+    },
+
+    addChildNode: function ( node ) {
+        Lod.prototype.addChildNode.call( this, node );
+    },
+
+    setFrameNumberOfLastTraversal: function ( frameNumber ) {
+        this._frameNumberOfLastTraversal = frameNumber;
+    },
+
+    getFrameNumberOfLastTraversal: function () {
+        return this._frameNumberOfLastTraversal;
+    },
+    setTimeStamp: function ( childNo, timeStamp ) {
+        this._perRangeDataList[ childNo ].timeStamp = timeStamp;
+    },
+    setFrameNumber: function ( childNo, frameNumber ) {
+        this._perRangeDataList[ childNo ].frameNumber = frameNumber;
+    },
+    setNumChildrenThatCannotBeExpired: function ( num ) {
+        this._numChildrenThatCannotBeExpired = num;
+    },
+    getNumChildrenThatCannotBeExpired: function () {
+        return this._numChildrenThatCannotBeExpired;
+    },
+    getDatabaseRequest: function ( childNo ) {
+        return this._perRangeDataList[ childNo ].dbrequest;
+    },
+    removeExpiredChildren: function ( expiryTime, expiryFrame, removedChildren ) {
+        if ( this.children.length &lt;= this._numChildrenThatCannotBeExpired ) return;
+        var i = this.children.length - 1;
+        var timed, framed;
+        timed = this._perRangeDataList[ i ].timeStamp + this._expiryTime;
+        framed = this._perRangeDataList[ i ].frameNumber + this._expiryFrame;
+        if ( timed &lt; expiryTime &amp;&amp; framed &lt; expiryFrame &amp;&amp; ( this._perRangeDataList[ i ].filename.length &gt; 0 ||
+                this._perRangeDataList[ i ].function !== undefined ) ) {
+            removedChildren.push( this.children[ i ] );
+            this.removeChild( this.children[ i ] );
+            this._perRangeDataList[ i ].loaded = false;
+            if ( this._perRangeDataList[ i ].dbrequest !== undefined ) {
+                this._perRangeDataList[ i ].dbrequest._groupExpired = true;
+            }
+        }
+    },
+
+    traverse: ( function () {
+
+        // avoid to generate variable on the heap to limit garbage collection
+        // instead create variable and use the same each time
+        var zeroVector = Vec3.create();
+        var eye = Vec3.create();
+        var viewModel = Matrix.create();
+
+        return function ( visitor ) {
+
+            var traversalMode = visitor.traversalMode;
+            var updateTimeStamp = false;
+
+            if ( visitor.getVisitorType() === NodeVisitor.CULL_VISITOR ) {
+                this._frameNumberOfLastTraversal = visitor.getFrameStamp().getFrameNumber();
+                updateTimeStamp = true;
+            }
+
+            switch ( traversalMode ) {
+
+            case NodeVisitor.TRAVERSE_ALL_CHILDREN:
+
+                for ( var index = 0; index &lt; this.children.length; index++ ) {
+                    this.children[ index ].accept( visitor );
+                }
+                break;
+
+            case ( NodeVisitor.TRAVERSE_ACTIVE_CHILDREN ):
+                var requiredRange = 0;
+
+                // Calculate distance from viewpoint
+                var matrix = visitor.getCurrentModelViewMatrix();
+                Matrix.inverse( matrix, viewModel );
+                if ( this._rangeMode === Lod.DISTANCE_FROM_EYE_POINT ) {
+                    Matrix.transformVec3( viewModel, zeroVector, eye );
+                    var d = Vec3.distance( eye, this.getBound().center() );
+                    requiredRange = d * visitor.getLODScale();
+                } else {
+                    // Calculate pixels on screen
+                    var projmatrix = visitor.getCurrentProjectionMatrix();
+                    // focal lenght is the value stored in projmatrix[0]
+                    requiredRange = this.projectBoundingSphere( this.getBound(), matrix, projmatrix[ 0 ] );
+                    // Get the real area value and apply LODScale
+                    requiredRange = ( ( requiredRange * visitor.getViewport().width() * visitor.getViewport().width() ) * 0.25 ) / visitor.getLODScale();
+                    if ( requiredRange &lt; 0 ) requiredRange = this._range[ this._range.length - 1 ][ 0 ];
+                }
+
+                var needToLoadChild = false;
+                var lastChildTraversed = -1;
+                for ( var j = 0; j &lt; this._range.length; ++j ) {
+                    if ( this._range[ j ][ 0 ] &lt;= requiredRange &amp;&amp; requiredRange &lt; this._range[ j ][ 1 ] ) {
+                        if ( j &lt; this.children.length ) {
+
+                            if ( updateTimeStamp ) {
+                                this._perRangeDataList[ j ].timeStamp = visitor.getFrameStamp().getSimulationTime();
+                                this._perRangeDataList[ j ].frameNumber = visitor.getFrameStamp().getFrameNumber();
+                            }
+
+                            this.children[ j ].accept( visitor );
+                            lastChildTraversed = j;
+                        } else {
+                            needToLoadChild = true;
+                        }
+                    }
+                }
+                if ( needToLoadChild ) {
+                    var numChildren = this.children.length;
+                    if ( numChildren &gt; 0 &amp;&amp; ( ( numChildren - 1 ) !== lastChildTraversed ) ) {
+
+                        if ( updateTimeStamp ) {
+                            this._perRangeDataList[ numChildren - 1 ].timeStamp = visitor.getFrameStamp().getSimulationTime();
+                            this._perRangeDataList[ numChildren - 1 ].frameNumber = visitor.getFrameStamp().getFrameNumber();
+                        }
+
+                        this.children[ numChildren - 1 ].accept( visitor );
+                    }
+                    // now request the loading of the next unloaded child.
+                    if ( numChildren &lt; this._perRangeDataList.length ) {
+                        // compute priority from where abouts in the required range the distance falls.
+                        var priority = ( this._range[ numChildren ][ 0 ] - requiredRange ) / ( this._range[ numChildren ][ 1 ] - this._range[ numChildren ][ 0 ] );
+                        if ( this._rangeMode === Lod.PIXEL_SIZE_ON_SCREEN ) {
+                            priority = -priority;
+                        }
+                        // Here we do the request
+                        var group = visitor.nodePath[ visitor.nodePath.length - 1 ];
+                        if ( this._perRangeDataList[ numChildren ].loaded === false ) {
+                            this._perRangeDataList[ numChildren ].loaded = true;
+                            var dbhandler = visitor.getDatabaseRequestHandler();
+                            this._perRangeDataList[ numChildren ].dbrequest = dbhandler.requestNodeFile( this._perRangeDataList[ numChildren ].function, this._databasePath + this._perRangeDataList[ numChildren ].filename, group, visitor.getFrameStamp().getSimulationTime(), priority );
+                        } else {
+                            // Update timestamp of the request.
+                            if ( this._perRangeDataList[ numChildren ].dbrequest !== undefined ) {
+                                this._perRangeDataList[ numChildren ].dbrequest._timeStamp = visitor.getFrameStamp().getSimulationTime();
+                                this._perRangeDataList[ numChildren ].dbrequest._priority = priority;
+                            } else {
+                                // The DB request is undefined, so the DBPager was not accepting requests, we need to ask for the child again.
+                                this._perRangeDataList[ numChildren ].loaded = false;
+                            }
+                        }
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+        };
+    } )()
+
+
+} ), &#039;osg&#039;, &#039;PagedLOD&#039; );
+
+MACROUTILS.setTypeID( PagedLOD );
+module.exports = PagedLOD;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

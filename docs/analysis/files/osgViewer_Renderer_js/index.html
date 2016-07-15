@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osgViewer/Renderer.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">68.19</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">215</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">25.64</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">1.73</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var CullSettings = require( &#039;osg/CullSettings&#039; );
+var CullVisitor = require( &#039;osg/CullVisitor&#039; );
+var Object = require( &#039;osg/Object&#039; );
+var RenderStage = require( &#039;osg/RenderStage&#039; );
+var State = require( &#039;osg/State&#039; );
+var StateGraph = require( &#039;osg/StateGraph&#039; );
+var Vec4 = require( &#039;osg/Vec4&#039; );
+var osgShader = require( &#039;osgShader/osgShader&#039; );
+var DisplayGraph = require( &#039;osgUtil/DisplayGraph&#039; );
+
+
+var Renderer = function ( camera ) {
+    Object.call( this );
+
+    this._state = undefined;
+    this._camera = camera;
+    this._renderStage = undefined;
+    this._stateGraph = undefined;
+
+    this._frameStamp = undefined;
+
+    this._previousCullsettings = new CullSettings();
+
+    this.setDefaults();
+};
+
+Renderer.debugGraph = false;
+
+Renderer.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( Object.prototype, {
+
+    setDefaults: function () {
+
+        this._state = new State( new osgShader.ShaderGeneratorProxy() );
+
+        this._cullVisitor = new CullVisitor();
+        this._cullVisitor.setRenderer( this );
+        this._stateGraph = new StateGraph();
+
+        this.getCamera().setClearColor( Vec4.create() );
+        this.setRenderStage( new RenderStage() );
+
+        var osg = require( &#039;osg/osg&#039; );
+        var stateSet = this.getCamera().getOrCreateStateSet();
+        stateSet.setAttributeAndModes( new osg.Material() );
+        stateSet.setAttributeAndModes( new osg.Depth() );
+        stateSet.setAttributeAndModes( new osg.BlendFunc() );
+        stateSet.setAttributeAndModes( new osg.CullFace() );
+
+    },
+
+    getCullVisitor: function () {
+        return this._cullVisitor;
+    },
+
+    setCullVisitor: function ( cv ) {
+        if ( cv &amp;&amp; !cv.getRenderer() ) cv.setRenderer( this );
+        this._cullVisitor = cv;
+    },
+
+    setRenderStage: function ( rs ) {
+        this._renderStage = rs;
+    },
+
+    getCamera: function () {
+        return this._camera;
+    },
+
+    setFrameStamp: function ( fs ) {
+        this._frameStamp = fs;
+    },
+
+    getFrameStamp: function () {
+        return this._frameStamp;
+    },
+
+    getState: function () {
+        return this._state;
+    },
+
+    setState: function ( state ) {
+        this._state = state;
+    },
+
+    setGraphicContext: function ( gc ) {
+        this._state.setGraphicContext( gc );
+    },
+
+    getGraphicContext: function () {
+        return this._state.getGraphicContext();
+    },
+
+    cullAndDraw: function () {
+        this.cull();
+        this.draw();
+    },
+
+    cull: function () {
+
+        var camera = this.getCamera();
+        var view = camera.getView();
+
+        this._cullVisitor.setFrameStamp( this._frameStamp );
+
+        // reset stats
+        this._cullVisitor.resetStats();
+
+        // this part of code should be called for each view
+        // right now, we dont support multi view
+        this._stateGraph.clean();
+        this._renderStage.reset();
+
+        this._cullVisitor.reset();
+        this._cullVisitor.setStateGraph( this._stateGraph );
+        this._cullVisitor.setRenderStage( this._renderStage );
+
+        this._cullVisitor.pushStateSet( camera.getStateSet() );
+
+        // save cullSettings
+        this._previousCullsettings.reset();
+        this._previousCullsettings.setCullSettings( this._cullVisitor );
+        this._cullVisitor.setCullSettings( camera );
+        if ( this._previousCullsettings.getSettingSourceOverrider() === this._cullVisitor &amp;&amp; this._previousCullsettings.getEnableFrustumCulling() ) {
+            this._cullVisitor.setEnableFrustumCulling( true );
+        }
+
+        // Push reference on the projection stack, it means that if compute near/far
+        // is activated, it will update the projection matrix of the camera
+        this._cullVisitor.pushCameraModelViewProjectionMatrix( camera, camera.getViewMatrix(), camera.getProjectionMatrix() );
+
+        // update bound
+        camera.getBound();
+
+        var light = view.getLight();
+        var View = require( &#039;osgViewer/View&#039; );
+
+        if ( light ) {
+
+            switch ( view.getLightingMode() ) {
+
+            case View.LightingMode.HEADLIGHT:
+                this._cullVisitor.addPositionedAttribute( null, light );
+                break;
+
+            case View.LightingMode.SKY_LIGHT:
+                this._cullVisitor.addPositionedAttribute( camera.getViewMatrix(), light );
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        this._cullVisitor.pushViewport( camera.getViewport() );
+
+
+        this._renderStage.setClearDepth( camera.getClearDepth() );
+        this._renderStage.setClearColor( camera.getClearColor() );
+        this._renderStage.setClearMask( camera.getClearMask() );
+        this._renderStage.setViewport( camera.getViewport() );
+
+        // pass de dbpager to the cullvisitor, so plod&#039;s can do the requests
+        this._cullVisitor.setDatabaseRequestHandler( this._camera.getView().getDatabasePager() );
+        // dont add camera on the stack just traverse it
+        this._cullVisitor.handleCullCallbacksAndTraverse( camera );
+
+        // fix projection matrix if camera has near/far auto compute
+        this._cullVisitor.popCameraModelViewProjectionMatrix( camera );
+
+        // Important notes about near/far
+        // If you are using the picking on the main camera and
+        // you use only children sub camera for RTT, your
+        // main camera will keep +/-infinity for near/far because
+        // the computation of near/far is done by camera and use Geometry
+
+
+        // restore previous state of the camera
+        this._cullVisitor.setCullSettings( this._previousCullsettings );
+
+        this._cullVisitor.popViewport();
+        this._cullVisitor.popStateSet();
+
+        this._renderStage.sort();
+
+    },
+
+    draw: function () {
+
+        var state = this.getState();
+
+        // important because cache are used in cullvisitor
+        state.resetCacheFrame();
+
+        // reset stats counter
+        state.resetStats();
+
+        this._renderStage.setCamera( this._camera );
+        this._renderStage.draw( state );
+
+        if ( Renderer.debugGraph ) {
+            DisplayGraph.instance().createRenderGraph( this._renderStage );
+            Renderer.debugGraph = false;
+        }
+
+        this._renderStage.setCamera( undefined );
+
+        state.applyDefault();
+
+    }
+
+
+} ), &#039;osgViewer&#039;, &#039;Renderer&#039; );
+
+module.exports = Renderer;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>

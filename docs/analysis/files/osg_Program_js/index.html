@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title></title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <!--[if lt IE 9]>
+  <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+
+  <link href="../../assets/css/vendor/morris.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/bootstrap.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/font-awesome-ie7.css" rel="stylesheet">
+  <link href="../../assets/css/vendor/codemirror.css" rel="stylesheet">
+  <link href="../../assets/css/plato.css" rel="stylesheet">
+  <link href="../../assets/css/plato-file.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="navbar navbar-fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="http://github.com/jsoverson/plato">Plato on Github</a>
+    <ul class="nav navbar-nav">
+      <li>
+        <a href="../../index.html">Report Home</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="jumbotron">
+  <div class="container">
+    <h1>osg/Program.js</h1>
+  </div>
+</div>
+
+<div class="container aggregate-stats">
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Maintainability <a href="http://blogs.msdn.com/b/codeanalysis/archive/2007/11/20/maintainability-index-range-and-meaning.aspx"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="A value between 0 and 100 that represents the relative ease of maintaining the code. A high value means better maintainability." data-original-title="Maintainability Index"></i></a></h2>
+      <p class="stat">66.82</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Lines of code <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h2>
+      <p class="stat">299</p>
+    </div>
+  </div>
+  <div class="row historical">
+    <div class="col-md-6">
+      <p id="chart_historical_maint" class="chart"></p>
+    </div>
+    <div class="col-md-6">
+      <p id="chart_historical_sloc" class="chart"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h2 class="header">Difficulty  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="The difficulty measure is related to the difficulty of the program to write or understand." data-original-title="Difficulty"></i></a></h2>
+      <p class="stat">53.77</p>
+    </div>
+    <div class="col-md-6">
+      <h2 class="header">Estimated Errors  <a href="http://en.wikipedia.org/wiki/Halstead_complexity_measures"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Halstead's delivered bugs is an estimate for the number of errors in the implementation." data-original-title="Delivered Bugs"></i></a></h2>
+      <p class="stat">2.80</p>
+    </div>
+  </div>
+</div>
+
+<div class="container charts">
+  <div class="row">
+    <h2 class="header">Function weight</h2>
+  </div>
+  <div class="row">
+    <div class="col-md-6">
+      <h3 class="chart-header">By Complexity <a href="http://en.wikipedia.org/wiki/Cyclomatic_complexity"><i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="This metric counts the number of distinct paths through a block of code. Lower values are better." data-original-title="Cyclomatic Complexity"></i></a></h3>
+      <div id="fn-by-complexity" class="stat"></div>
+    </div>
+    <div class="col-md-6">
+      <h3 class="chart-header">By SLOC  <i class="icon icon-info-sign" rel="popover" data-placement="top" data-trigger="hover" data-content="Source Lines of Code / Logical Lines of Code" data-original-title="SLOC/LSLOC"></i></h3>
+      <div id="fn-by-sloc" class="stat"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <textarea id="file-source" class="col-md-12">&#039;use strict&#039;;
+var MACROUTILS = require( &#039;osg/Utils&#039; );
+var Notify = require( &#039;osg/Notify&#039; );
+var GLObject = require( &#039;osg/GLObject&#039; );
+var StateAttribute = require( &#039;osg/StateAttribute&#039; );
+var CustomMap = require( &#039;osg/Map&#039; );
+var Timer = require( &#039;osg/Timer&#039; );
+
+/**
+ * Program encapsulate an vertex and fragment shader
+ * @class Program
+ */
+var Program = function ( vShader, fShader ) {
+    GLObject.call( this );
+    StateAttribute.call( this );
+    this._program = null;
+
+    // used to know if it&#039;s a default program
+    // a default program does nothing but avoid to do some
+    // useless logic
+    // if we vertex or fragment shader are set it&#039;s not a default
+    // program anymore
+    this._nullProgram = true;
+
+    this._vertex = undefined;
+    this._fragment = undefined;
+
+    this._uniformsCache = undefined;
+    this._attributesCache = undefined;
+    this._activeUniforms = undefined;
+    this._foreignUniforms = undefined;
+    this._trackAttributes = undefined;
+
+    if ( vShader )
+        this.setVertexShader( vShader );
+
+    if ( fShader )
+        this.setFragmentShader( fShader );
+
+    this._dirty = true;
+};
+
+// static cache of glPrograms flagged for deletion, which will actually
+// be deleted in the correct GL context.
+Program._sDeletedGLProgramCache = new window.Map();
+
+// static method to delete Program
+Program.deleteGLProgram = function ( gl, program ) {
+
+    if ( !Program._sDeletedGLProgramCache.has( gl ) )
+        Program._sDeletedGLProgramCache.set( gl, [] );
+
+    Program._sDeletedGLProgramCache.get( gl ).push( program );
+};
+
+// static method to flush all the cached glPrograms which need to be deleted in the GL context specified
+Program.flushDeletedGLPrograms = function ( gl, availableTime ) {
+
+    // if no time available don&#039;t try to flush objects.
+    if ( availableTime &lt;= 0.0 ) return availableTime;
+
+    if ( !Program._sDeletedGLProgramCache.has( gl ) ) return availableTime;
+
+    var elapsedTime = 0.0;
+    var beginTime = Timer.instance().tick();
+    var deleteList = Program._sDeletedGLProgramCache.get( gl );
+    var numPrograms = deleteList.length;
+
+    for ( var i = numPrograms - 1; i &gt;= 0 &amp;&amp; elapsedTime &lt; availableTime; i-- ) {
+        gl.deleteProgram( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+        elapsedTime = Timer.instance().deltaS( beginTime, Timer.instance().tick() );
+    }
+
+    return availableTime - elapsedTime;
+};
+
+Program.flushAllDeletedGLPrograms = function ( gl ) {
+
+    if ( !Program._sDeletedGLProgramCache.has( gl ) ) return;
+
+    var deleteList = Program._sDeletedGLProgramCache.get( gl );
+    var numPrograms = deleteList.length;
+
+    for ( var i = numPrograms - 1; i &gt;= 0; i-- ) {
+        gl.deleteProgram( deleteList[ i ] );
+        deleteList.splice( i, 1 );
+    }
+};
+
+/** @lends Program.prototype */
+Program.prototype = MACROUTILS.objectLibraryClass( MACROUTILS.objectInherit( GLObject.prototype, MACROUTILS.objectInherit( StateAttribute.prototype, {
+
+    attributeType: &#039;Program&#039;,
+
+    cloneType: function () {
+        return new Program();
+    },
+
+    setVertexShader: function ( vs ) {
+        this._vertex = vs;
+        this._nullProgram = false;
+    },
+
+    setFragmentShader: function ( fs ) {
+        this._fragment = fs;
+        this._nullProgram = false;
+    },
+
+    getVertexShader: function () {
+        return this._vertex;
+    },
+    getFragmentShader: function () {
+        return this._fragment;
+    },
+
+    getProgram: function () {
+        return this._program;
+    },
+
+    setActiveUniforms: function ( activeUniforms ) {
+        this._activeUniforms = activeUniforms;
+    },
+
+    getActiveUniforms: function () {
+        return this._activeUniforms;
+    },
+
+    setForeignUniforms: function ( foreignUniforms ) {
+        this._foreignUniforms = foreignUniforms;
+    },
+
+    getForeignUniforms: function () {
+        return this._foreignUniforms;
+    },
+
+    setUniformsCache: function ( uniformsCache ) {
+        this._uniformsCache = uniformsCache;
+    },
+
+    getUniformsCache: function () {
+        return this._uniformsCache;
+    },
+
+    setAttributesCache: function ( attributesCache ) {
+        this._attributesCache = attributesCache;
+    },
+
+    getAttributesCache: function () {
+        return this._attributesCache;
+    },
+
+    setTrackAttributes: function ( trackAttributes ) {
+        this._trackAttributes = trackAttributes;
+    },
+
+    getTrackAttributes: function () {
+        return this._trackAttributes;
+    },
+
+    releaseGLObjects: function () {
+        // Call to releaseGLOBjects on shaders
+        if ( this._vertex !== undefined ) this._vertex.releaseGLObjects();
+        if ( this._fragment !== undefined ) this._fragment.releaseGLObjects();
+        if ( this._program === null ) return;
+        if ( this._gl !== undefined ) {
+            Program.deleteGLProgram( this._gl, this._program );
+        }
+        this._program = undefined;
+    },
+
+    apply: function ( state ) {
+
+        if ( this._nullProgram ) return;
+
+        if ( !this._gl ) {
+            this.setGraphicContext( state.getGraphicContext() );
+        }
+        var gl = this._gl;
+        if ( !this._program || this._dirty ) {
+
+            var compileClean;
+
+            if ( !this._vertex.shader ) {
+                compileClean = this._vertex.compile( gl );
+            }
+
+            if ( !this._fragment.shader ) {
+                compileClean = this._fragment.compile( gl );
+            }
+
+            if ( compileClean ) {
+
+                this._program = gl.createProgram();
+
+                gl.attachShader( this._program, this._vertex.shader );
+                gl.attachShader( this._program, this._fragment.shader );
+                MACROUTILS.timeStamp( &#039;osgjs.metrics:linkShader&#039; );
+                gl.linkProgram( this._program );
+
+                if ( !gl.getProgramParameter( this._program, gl.LINK_STATUS ) &amp;&amp; !gl.isContextLost() ) {
+                    var errLink = gl.getProgramInfoLog( this._program );
+
+                    Notify.error( errLink );
+                    Notify.log( &#039;can\&#039;t link program\n&#039; + &#039;vertex shader:\n&#039; + this._vertex.text + &#039;\n fragment shader:\n&#039; + this._fragment.text, true, false );
+                    // rawgl trick is for webgl inspector
+                    var debugShader = ( gl.rawgl !== undefined ? gl.rawgl : gl );
+                    if ( debugShader !== undefined &amp;&amp; debugShader.getExtension !== undefined ) debugShader = debugShader.getExtension( &#039;WEBGL_debug_shaders&#039; );
+                    if ( debugShader &amp;&amp; errLink === &#039;Failed to create D3D shaders.\n&#039; ) {
+
+                        Notify.error( debugShader.getTranslatedShaderSource( this._vertex.shader ), true, false );
+                        Notify.error( debugShader.getTranslatedShaderSource( this._fragment.shader ), true, false );
+                    }
+
+                    compileClean = false;
+                }
+                // TODO: better usage of validate.
+                // as it&#039;s intended at shader program usage
+                // validating against current gl state
+                // Not for compilation stage
+                // gl.validateProgram( this._program );
+
+            }
+
+            if ( !compileClean ) {
+                // Any error, Any
+                // Pink must die.
+                if ( !Program.prototype._failSafeCache ) {
+
+                    var program = gl.createProgram();
+                    this._vertex.failSafe( gl );
+                    this._fragment.failSafe( gl );
+
+                    gl.attachShader( program, this._vertex.shader );
+                    gl.attachShader( program, this._fragment.shader );
+                    gl.linkProgram( program );
+                    gl.validateProgram( program );
+
+                    // cache to compile and allocate only once
+                    // not polluting the inspector
+                    Program.prototype._failSafeCache = program;
+                }
+                Notify.warn( &#039;FailSafe shader Activated &#039; );
+                this._program = this._failSafeCache;
+            }
+
+            this._uniformsCache = new CustomMap();
+            this._attributesCache = new CustomMap();
+
+            this.cacheUniformList( gl, this._vertex.text );
+            this.cacheUniformList( gl, this._fragment.text );
+
+            this.cacheAttributeList( gl, this._vertex.text );
+
+            this._dirty = false;
+        }
+
+        state.applyProgram( this._program );
+    },
+
+    cacheUniformList: function ( gl, str ) {
+
+        var r = str.match( /uniform\s+\w+\s+\w+((\s)?\[(.*?)\])?/g );
+        var map = this._uniformsCache;
+        if ( r !== null ) {
+            for ( var i = 0, l = r.length; i &lt; l; i++ ) {
+                var uniform = r[ i ].match( /uniform\s+\w+\s+(\w+)/ )[ 1 ];
+                var uniformName = r[ i ].match( /uniform\s+\w+\s+(\w+)(\s?\[.*?\])?/ )[ 1 ];
+                var location = gl.getUniformLocation( this._program, uniform );
+                if ( location !== undefined &amp;&amp; location !== null ) {
+                    if ( map[ uniformName ] === undefined ) {
+                        map[ uniformName ] = location;
+                        this._uniformsCache.dirty();
+                    }
+                }
+            }
+        }
+
+    },
+
+    cacheAttributeList: function ( gl, str ) {
+        var r = str.match( /attribute\s+\w+\s+\w+/g );
+        var map = this._attributesCache;
+        if ( r !== null ) {
+            for ( var i = 0, l = r.length; i &lt; l; i++ ) {
+                var attr = r[ i ].match( /attribute\s+\w+\s+(\w+)/ )[ 1 ];
+                var location = gl.getAttribLocation( this._program, attr );
+                if ( location !== -1 &amp;&amp; location !== undefined ) {
+                    if ( map[ attr ] === undefined ) {
+                        map[ attr ] = location;
+                        this._attributesCache.dirty();
+                    }
+                }
+            }
+        }
+    }
+} ) ), &#039;osg&#039;, &#039;Program&#039; );
+
+module.exports = Program;</textarea>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>.</p>
+  </div>
+</footer>
+
+<script type="text/html" id="complexity-popover-template">
+  <div class="complexity-notice">
+    Complexity : {{ complexity.cyclomatic }} <br>
+    Length : {{ complexity.halstead.length }} <br>
+    Difficulty : {{ complexity.halstead.difficulty.toFixed(2) }} <br>
+    Est # bugs : {{ complexity.halstead.bugs.toFixed(2) }}<br>
+  </div>
+</script>
+
+<script type="text/javascript" src="../../assets/scripts/bundles/core-bundle.js"></script>
+<script type="text/javascript" src="../../assets/scripts/bundles/codemirror.js"></script>
+<script type="text/javascript" src="../../assets/scripts/codemirror.markpopovertext.js"></script>
+<script type="text/javascript" src="report.js"></script>
+<script type="text/javascript" src="report.history.js"></script>
+<script type="text/javascript" src="../../assets/scripts/plato-file.js"></script>
+</body>
+</html>
